@@ -25,8 +25,8 @@ eframe = { version = "0.36", default-features = false, features = ["glow", "defa
 egui = "0.36"
 cpal = "0.18"
 rfd = "0.17"
-rustfft = "6.4"
-taw-panel = { git = "https://github.com/TimsterAudio/TAW-Panel", rev = "29de12e21142d9f87ae85b708ed89ea18421621c" } # 0.1.0
+# 0.2.0, with the spectrum drawing and the analyser
+taw-panel = { git = "https://github.com/TimsterAudio/TAW-Panel", rev = "41a95d4513d93dfbf18803508065a8c0a168ec95", features = ["analyser"] }
 serde = { version = "1", features = ["derive"] }
 rtrb = "0.4"
 

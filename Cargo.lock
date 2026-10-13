@@ -795,7 +795,6 @@ dependencies = [
  "pipewire",
  "rfd",
  "rtrb",
- "rustfft",
  "serde",
  "taw-panel",
 ]
@@ -2680,10 +2679,12 @@ checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
 
 [[package]]
 name = "taw-panel"
-version = "0.1.0"
-source = "git+https://github.com/TimsterAudio/TAW-Panel?rev=29de12e21142d9f87ae85b708ed89ea18421621c#29de12e21142d9f87ae85b708ed89ea18421621c"
+version = "0.2.0"
+source = "git+https://github.com/TimsterAudio/TAW-Panel?rev=41a95d4513d93dfbf18803508065a8c0a168ec95#41a95d4513d93dfbf18803508065a8c0a168ec95"
 dependencies = [
  "egui",
+ "rtrb",
+ "rustfft",
  "serde",
 ]
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The SP-10 Spectrum Analyser is no longer included: it's now its own download, the TAW Analyser (TimsterAudio/TAW-Analyser).
+- The panel, spectrum drawing and analyser now come from the shared TAW-Panel crate. Nothing looks or behaves differently.
+
 ## 0.2.0 – 2026-10-11
 
 - Windows: a system-wide engine (test build). EQ Box's EQ runs inside Windows' own audio engine and equalises every app on the outputs you choose, with no virtual cable. Choose **Windows (system-wide)** under System and press **Install**.

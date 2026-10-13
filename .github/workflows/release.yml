@@ -85,7 +85,7 @@ jobs:
         run: |
           name="eq-box-${{ needs.version.outputs.version }}-linux-x86_64"
           mkdir "$name"
-          cp target/release/eq-box target/release/sp-10 packaging/linux/*.desktop README.md CHANGELOG.md "$name/"
+          cp target/release/eq-box packaging/linux/*.desktop README.md CHANGELOG.md "$name/"
           tar czf "$name.tar.gz" "$name"
       - uses: actions/upload-artifact@v4
         with:
@@ -131,7 +131,7 @@ jobs:
           $suffix = if ("${{ matrix.asio }}" -eq "true") { "-asio" } else { "" }
           $name = "eq-box-${{ needs.version.outputs.version }}-windows-x86_64$suffix"
           New-Item -ItemType Directory $name | Out-Null
-          Copy-Item target/release/eq-box.exe, target/release/sp-10.exe, README.md, CHANGELOG.md $name
+          Copy-Item target/release/eq-box.exe, README.md, CHANGELOG.md $name
           # The system-wide engine (test build) and its setup scripts.
           New-Item -ItemType Directory "$name/system-wide-engine" | Out-Null
           Copy-Item target/release/eq_box_apo.dll, packaging/windows/*.ps1, packaging/windows/*.cmd, packaging/windows/README.txt "$name/system-wide-engine"

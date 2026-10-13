@@ -10,8 +10,8 @@ It's a real desktop program written in Rust (egui for the panel). It isn't an HT
 
 Get the latest version from the [Releases page](https://github.com/TimsterAudio/EQ-Box/releases/latest):
 
-- **Linux:** `eq-box-…-linux-x86_64.tar.gz`. Extract it and run `./eq-box` (or `./sp-10` for the SP-10 Spectrum Analyser). It needs PipeWire 0.3.53 or newer (Ubuntu 24.04, Fedora 40, Arch or later). On older systems, build it yourself (see [Building](#building)).
-- **Windows:** `eq-box-…-windows-x86_64.zip` (WASAPI), or `…-windows-x86_64-asio.zip` with ASIO support as well. Extract it and run `eq-box.exe` (or `sp-10.exe` for the SP-10 Spectrum Analyser).
+- **Linux:** `eq-box-…-linux-x86_64.tar.gz`. Extract it and run `./eq-box`. It needs PipeWire 0.3.53 or newer (Ubuntu 24.04, Fedora 40, Arch or later). On older systems, build it yourself (see [Building](#building)).
+- **Windows:** `eq-box-…-windows-x86_64.zip` (WASAPI), or `…-windows-x86_64-asio.zip` with ASIO support as well. Extract it and run `eq-box.exe`.
 
 ## What it does
 
@@ -22,7 +22,7 @@ Get the latest version from the [Releases page](https://github.com/TimsterAudio/
 - **Audio systems:**
   - **Windows:** a **system-wide engine** (test build) that runs inside Windows' own audio engine and equalises every app with no virtual cable, plus **WASAPI** and **ASIO** (an optional build feature).
   - **Linux:** a **native PipeWire sink**. EQ Box shows up as an output called "EQ Box", so any app can play into it. It also has PipeWire and ALSA device modes.
-- **SP-10 Spectrum Analyser**, a separate program (`sp-10`): the spectrum analyser on its own, listening to what an output plays or to an input. It doesn't need EQ Box. See [SP-10](#sp-10-spectrum-analyser).
+- **The spectrum analyser on its own** is now a separate download: the [TAW Analyser](https://github.com/TimsterAudio/TAW-Analyser) (formerly SP-10).
 - **Remembers everything:** bands, preset name, devices, panel and knob style, and whether audio was running.
 
 ## Using it
@@ -48,17 +48,6 @@ EQ Box's engine can run inside Windows' own audio engine, so every app on an out
 If the output already has its own effect from its driver, EQ Box keeps it and runs it after the EQ.
 
 Apps using exclusive mode or ASIO bypass it, as they do with other EQ software. See `system-wide-engine/README.txt` and [docs/WINDOWS_APO_PLAN.md](docs/WINDOWS_APO_PLAN.md).
-
-### SP-10 Spectrum Analyser
-
-`sp-10` (`sp-10.exe` on Windows) is a spectrum analyser on its own, in the same panel style. It's a separate program that doesn't need EQ Box installed or running: on Windows the `.exe` can be copied anywhere by itself. It only listens and never plays anything, so it can't feed back.
-
-- **Source:** the default output (whatever is playing), any other output, or an input such as a microphone. Outputs are heard through PipeWire's monitors on Linux and WASAPI loopback on Windows.
-- **View:** a curve, bars or LED columns, at 1/3, 1/6 or 1/12 octave.
-- **Colour** and **Style:** the same schemes as EQ Box's analyser (red, amber, green, ice, white, rainbow, heat), filled, line or both.
-- **Motion:** **Rise** and **Fall** times, and **Hold** for peak markers (off at 0).
-- **Scale:** the **Range** shown below 0 dBFS (40 to 120 dB), and the **Slope** in dB per octave (3 makes pink noise read flat).
-- **For any screen:** the window resizes freely. **H** hides the controls (double-click the display to bring them back), **F11** or **Full** goes full screen, **On top** keeps it above other windows, **Grid** shows or hides the scale, and **Space** freezes the display.
 
 ### Windows (WASAPI)
 
@@ -104,10 +93,9 @@ sudo pacman -S pipewire alsa-lib clang
 
 cargo build --release
 ./target/release/eq-box
-./target/release/sp-10
 ```
 
-`packaging/linux/eq-box.desktop` and `sp-10.desktop` are launcher entries you can copy to `~/.local/share/applications/`.
+`packaging/linux/eq-box.desktop` is a launcher entry you can copy to `~/.local/share/applications/`.
 
 **Windows (WASAPI):**
 
