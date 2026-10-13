@@ -1,4 +1,4 @@
-# the Equaliser
+# TAW Equaliser
 
 **Timster's Audio Works – Equaliser (EQ-001) v0.3.0**: a native ten-band parametric equaliser for Windows and Linux. One of the family's hi-fi separates, with the Library, Player and Analyser, all on the same Jupiter-style panel. It was called EQ Box until 0.3.0.
 
@@ -39,7 +39,7 @@ If you'd rather equalise a capture device, choose **PipeWire devices** or **ALSA
 
 ### Windows (system-wide, test build)
 
-the Equaliser's engine can run inside Windows' own audio engine, so every app on an output is equalised with no extra software. The Windows download has a `system-wide-engine` folder:
+The Equaliser's engine can run inside Windows' own audio engine, so every app on an output is equalised with no extra software. The Windows download has a `system-wide-engine` folder:
 
 1. In the Equaliser, set **System** to **Windows (system-wide)** and press **Install** (or double-click `Install system-wide engine.cmd`). Allow Windows' permission prompt, then pick your output.
 2. Press **Run / Stop**. Your settings go straight to the engine and stay set after the Equaliser closes.
