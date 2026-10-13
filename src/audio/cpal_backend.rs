@@ -46,12 +46,13 @@ pub fn devices(backend: &str) -> Result<DeviceLists, String> {
     for d in all {
         let Ok(id) = d.id() else { continue };
         let name = device_name(&d);
-        // The lists already start with "Default input/output", and EQ Box's
+        // The lists already start with "Default input/output", and the Equaliser's
         // own PipeWire node can't feed itself.
         let raw = id.id();
         if raw.starts_with("default_")
             || raw.ends_with("_default")
             || name.starts_with("default_")
+            || raw.starts_with("taw_equaliser")
             || raw.starts_with("eq_box")
             || raw.starts_with("eq-box")
         {
@@ -107,7 +108,7 @@ pub fn start(req: &StartRequest, shared: Arc<Shared>, tap: AnalyzerTap) -> Resul
     let (ready_tx, ready_rx) = mpsc::channel::<Result<String, String>>();
     let (stop_tx, stop_rx) = mpsc::channel::<()>();
     let thread = std::thread::Builder::new()
-        .name("eq-box-audio".into())
+        .name("taw-equaliser-audio".into())
         .spawn(move || match open(&req, shared, tap) {
             Ok((streams, desc)) => {
                 let _ = ready_tx.send(Ok(desc));
@@ -188,7 +189,7 @@ fn open(
     // Never capture an output (WASAPI would turn it into loopback, which
     // feeds back), even if an old setting still names one.
     if req.backend.eq_ignore_ascii_case("wasapi") && in_dev.supports_output() {
-        return Err("That input is an output device. EQ Box no longer captures outputs (loopback), because it can feed back. Choose a real input.".into());
+        return Err("That input is an output device. The Equaliser doesn't capture outputs (loopback), because it can feed back. Choose a real input.".into());
     }
 
     let out_supported = out_dev.default_output_config().map_err(|e| e.to_string())?;

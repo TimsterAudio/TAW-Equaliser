@@ -1,5 +1,5 @@
 @echo off
-rem Installs EQ Box's system-wide engine on the output you pick (run again to add another).
+rem Installs the TAW Equaliser's system-wide engine on the output you pick (run again to add another).
 rem Double-click it. Windows asks for administrator permission, then the
 rem PowerShell window shows what it's doing; close it when it's finished.
 set "EQBOX_SCRIPT=%~dp0install-engine.ps1"

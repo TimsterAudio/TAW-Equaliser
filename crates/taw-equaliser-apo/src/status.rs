@@ -63,7 +63,7 @@ pub fn report(shared: &Shared, settings_path: &std::path::Path) -> String {
     }
     let refused = LAST_REFUSED.load(Relaxed);
     format!(
-        "EQ Box engine status (written by the Windows audio engine)\r\n\
+        "TAW Equaliser engine status (written by the Windows audio engine)\r\n\
          updated (unix time): {now}\r\n\
          process id: {pid}\r\n\
          engine instances created: {created}, initialised: {init}\r\n\

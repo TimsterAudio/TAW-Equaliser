@@ -1,4 +1,4 @@
-//! The settings file that links the EQ Box window to the Windows engine.
+//! The settings file that links the Equaliser window to the Windows engine.
 //!
 //! The window writes the panel to this file; the engine (running inside the
 //! Windows audio engine) watches it and glides to the new settings. Because
@@ -12,14 +12,15 @@ use std::path::{Path, PathBuf};
 /// Bump only for changes old engines can't read; new fields just need a
 /// default.
 pub const FORMAT: u32 = 1;
-/// What the engine can do. It reports this in its status file, so EQ Box can
-/// tell when the installed engine is older than the window and needs
+/// What the engine can do. It reports this in its status file, so the window
+/// can tell when the installed engine is older than the window and needs
 /// installing again. Bump it whenever the window starts sending something
 /// older engines can't play (2: high-pass, low-pass and notch filters).
 pub const ENGINE_LEVEL: u32 = 2;
 /// The status file's line that carries [`ENGINE_LEVEL`].
 pub const LEVEL_LINE: &str = "engine level: ";
-pub const DIR_NAME: &str = "EQ Box";
+/// The settings folder under `%ProgramData%`, shared by the family.
+pub const DIR: [&str; 2] = ["Timster's Audio Works", "Equaliser"];
 pub const FILE_NAME: &str = "engine.json";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -43,13 +44,14 @@ impl Default for EngineFile {
     }
 }
 
-/// `%ProgramData%\EQ Box\engine.json`: a place both the user's EQ Box and
-/// the audio engine's service account can reach.
+/// `%ProgramData%\Timster's Audio Works\Equaliser\engine.json`: a place
+/// both the user's Equaliser window and the audio engine's service account
+/// can reach.
 pub fn default_path() -> PathBuf {
     let base = std::env::var_os("PROGRAMDATA")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(r"C:\ProgramData"));
-    base.join(DIR_NAME).join(FILE_NAME)
+    base.join(DIR[0]).join(DIR[1]).join(FILE_NAME)
 }
 
 pub fn to_json(s: &EqSettings) -> String {
@@ -134,7 +136,7 @@ mod tests {
 
     #[test]
     fn writes_atomically() {
-        let dir = std::env::temp_dir().join(format!("eq-box-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("taw-equaliser-test-{}", std::process::id()));
         let path = dir.join(FILE_NAME);
         let mut s = EqSettings::default();
         s.bands[0].gain_db = 6.0;

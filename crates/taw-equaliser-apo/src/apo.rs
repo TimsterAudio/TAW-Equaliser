@@ -81,7 +81,7 @@ impl Engine {
     }
 }
 
-/// The format of a media type, if it's one EQ Box can run on: uncompressed
+/// The format of a media type, if it's one the Equaliser can run on: uncompressed
 /// 32-bit float, which is what the Windows audio engine uses internally.
 fn float_format(t: &IAudioMediaType) -> Result<Format> {
     let mut f = UNCOMPRESSEDAUDIOFORMAT::default();
@@ -116,7 +116,7 @@ fn float_format(t: &IAudioMediaType) -> Result<Format> {
     })
 }
 
-/// EQ Box works in place, so input and output must be the same format.
+/// The Equaliser works in place, so input and output must be the same format.
 fn check_format(
     opposite: Option<&IAudioMediaType>,
     requested: Option<&IAudioMediaType>,
@@ -176,7 +176,7 @@ impl Engine {
     }
 
     /// A format query (`input` says which side). The device's own effect,
-    /// if any, must take the format too; if it won't, EQ Box drops it
+    /// if any, must take the format too; if it won't, the Equaliser drops it
     /// rather than stop the sound.
     pub fn check_format(
         &self,
@@ -205,7 +205,7 @@ impl Engine {
         let props = APO_REG_PROPERTIES {
             clsid: CLSID_EQ_BOX_APO,
             Flags: APO_FLAG(APO_FLAG_DEFAULT.0 | APO_FLAG_INPLACE.0),
-            szFriendlyName: wide("EQ Box"),
+            szFriendlyName: wide("TAW Equaliser"),
             szCopyrightInfo: wide("Timster's Audio Works"),
             u32MajorVersion: env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or(0),
             u32MinorVersion: env!("CARGO_PKG_VERSION_MINOR").parse().unwrap_or(0),
@@ -228,7 +228,7 @@ impl Engine {
     }
 
     pub fn initialize(&self, cbdatasize: u32, pbydata: *const u8) -> Result<()> {
-        // The data is the device's property stores. EQ Box's settings come
+        // The data is the device's property stores. the Equaliser's settings come
         // from its own file; the stores only say which effect to chain.
         let data: &[u8] = if pbydata.is_null() || cbdatasize == 0 {
             &[]
@@ -415,7 +415,7 @@ impl Engine {
         pceffects: *mut u32,
         _event: HANDLE,
     ) -> Result<()> {
-        // EQ Box doesn't expose individual effects to Windows' settings UI.
+        // The Equaliser doesn't expose individual effects to Windows' settings UI.
         if ppeffectsids.is_null() || pceffects.is_null() {
             return Err(E_POINTER.into());
         }

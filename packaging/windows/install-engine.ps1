@@ -1,13 +1,17 @@
 <#
 .SYNOPSIS
-    Installs EQ Box's system-wide engine on one Windows output (test build).
+    Installs the TAW Equaliser's system-wide engine on one Windows output
+    (test build).
 
 .DESCRIPTION
-    Copies eq_box_apo.dll to "C:\Program Files\EQ Box", registers it with
-    Windows, and adds it to the output you choose as an endpoint effect.
-    Windows' audio service then restarts, and everything that output plays
-    goes through EQ Box. Set the EQ in EQ Box with System set to
-    "Windows (system-wide)".
+    Copies taw_equaliser_apo.dll to "C:\Program Files\Timster's Audio
+    Works\Equaliser", registers it with Windows, and adds it to the output
+    you choose as an endpoint effect. Windows' audio service then restarts,
+    and everything that output plays goes through the Equaliser. Set the EQ
+    in the TAW Equaliser window with System set to "Windows (system-wide)".
+
+    If an EQ Box engine (the app's old name) is installed, it offers to
+    remove it first, putting every device back as it was.
 
     The device's effect settings are backed up first. remove-engine.ps1
     puts every device back exactly as it was.
@@ -21,7 +25,8 @@
 
 .PARAMETER NoChain
     If the output already has an endpoint effect from its driver, switch it
-    off while EQ Box is installed instead of running it after EQ Box. Only
+    off while the Equaliser is installed instead of running it after the
+    Equaliser. Only
     for a driver effect that misbehaves; it comes back on removal.
 #>
 #Requires -RunAsAdministrator
@@ -46,12 +51,29 @@ if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProces
 . (Join-Path $PSScriptRoot 'engine-common.ps1')
 
 Write-Host ''
-Write-Host 'EQ Box: install the system-wide engine (test build)' -ForegroundColor Cyan
+Write-Host 'TAW Equaliser: install the system-wide engine (test build)' -ForegroundColor Cyan
 Write-Host ''
 
 $dllSource = Join-Path $PSScriptRoot $DllName
 if (-not (Test-Path $dllSource)) {
     throw "Can't find $DllName next to this script ($PSScriptRoot)."
+}
+
+# --- An EQ Box engine (the old name) comes off first ----------------------
+if (Test-LegacyInstall) {
+    Write-Host 'An EQ Box engine is installed. That is this app under its old name.' -ForegroundColor Yellow
+    Write-Host 'It has to be removed first: every device goes back as it was, then the'
+    Write-Host 'TAW Equaliser engine is installed in its place. Save your EQ as a preset'
+    Write-Host 'in the app first if you want to keep it.'
+    $answer = Read-Host 'Remove EQ Box now and carry on? (Y/n)'
+    if ($answer -and $answer.Trim().ToLower() -notin @('y', 'yes')) {
+        throw 'Stopped: EQ Box is still installed. Nothing was changed.'
+    }
+    & (Join-Path $PSScriptRoot 'remove-engine.ps1')
+    if (Test-LegacyInstall) {
+        throw "EQ Box couldn't be removed completely. Run remove-engine.ps1 and send its output to the developer."
+    }
+    Write-Host ''
 }
 
 # --- Pick the output ------------------------------------------------------
@@ -79,10 +101,10 @@ if (-not $DeviceId) {
     Write-Host 'Playback devices:'
     for ($i = 0; $i -lt $devices.Count; $i++) {
         $d = $devices[$i]
-        $mark = if ($d.HasEqBox) { '  (EQ Box installed)' } else { '' }
+        $mark = if ($d.HasEqBox) { '  (Equaliser installed)' } else { '' }
         Write-Host ("  [{0}] {1}{2}" -f ($i + 1), $d.Label, $mark)
     }
-    $choice = Read-Host "Which one gets EQ Box? (1-$($devices.Count))"
+    $choice = Read-Host "Which one gets the Equaliser? (1-$($devices.Count))"
     $n = 0
     if (-not [int]::TryParse($choice, [ref]$n) -or $n -lt 1 -or $n -gt $devices.Count) {
         throw 'No device chosen.'
@@ -96,7 +118,7 @@ Write-Host ''
 Write-Host "Device: $($device.Label)"
 
 if ($device.EnhancementsOff) {
-    Write-Warning ('"Audio enhancements" are turned off for this device, so Windows will skip EQ Box. ' +
+    Write-Warning ('"Audio enhancements" are turned off for this device, so Windows will skip the Equaliser. ' +
         'Turn them on in Settings > System > Sound > (device) > Audio enhancements.')
 }
 
@@ -117,7 +139,7 @@ try {
     Start-Service -Name audiosrv
 }
 
-# The settings file: EQ Box (any user) writes it, the audio engine reads
+# The settings file: the Equaliser window (any user) writes it, the audio engine reads
 # it and writes engine-status.txt next to it. The audio engine runs as
 # LOCAL SERVICE with a restricted token, so its restricted identities
 # (RESTRICTED, WRITE RESTRICTED and the AudioSrv service) need access too.
@@ -125,6 +147,11 @@ New-Item -ItemType Directory -Force -Path $SettingsDir | Out-Null
 icacls $SettingsDir /grant '*S-1-5-32-545:(OI)(CI)M' '*S-1-5-19:(OI)(CI)M' '*S-1-5-12:(OI)(CI)M' '*S-1-5-33:(OI)(CI)M' /T | Out-Null
 # Separate call: if this name didn't resolve it would undo the grants above.
 icacls $SettingsDir /grant 'NT SERVICE\AudioSrv:(OI)(CI)M' /T 2>&1 | Out-Null
+# The family folder above it: just enough to pass through (read and list,
+# not inherited), for the same identities.
+$familyData = Split-Path -Parent $SettingsDir
+icacls $familyData /grant '*S-1-5-32-545:(RX)' '*S-1-5-19:(RX)' '*S-1-5-12:(RX)' '*S-1-5-33:(RX)' | Out-Null
+icacls $familyData /grant 'NT SERVICE\AudioSrv:(RX)' 2>&1 | Out-Null
 
 # --- Backups (only the first time, so a reinstall never overwrites them) --
 $backup = Join-Path $BackupDir "$($device.Guid).json"
@@ -154,7 +181,7 @@ if (-not (Test-Path $globalBackup)) {
     @{ DisableProtectedAudioDG = $prev } | ConvertTo-Json | Set-Content -Path $globalBackup -Encoding UTF8
 }
 
-# The original owner and permissions of the key EQ Box needs to write to:
+# The original owner and permissions of the key the engine needs to write to:
 # FxProperties if the device has one, otherwise the device key (to create
 # FxProperties under it). Saved once, before anything changes.
 $savedDevice = Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json
@@ -165,7 +192,7 @@ if (-not (Test-Path -LiteralPath $aclBackup)) {
     @{ Key = $aclTarget; Sddl = (Get-KeySddl $aclTarget) } | ConvertTo-Json | Set-Content -Path $aclBackup -Encoding UTF8
 }
 
-# The driver's own endpoint effect, as it was before EQ Box (from the backup,
+# The driver's own endpoint effect, as it was before the Equaliser (from the backup,
 # so a reinstall still finds it).
 $NoEffect = '{00000000-0000-0000-0000-000000000000}'
 $original = $null
@@ -179,9 +206,9 @@ if ($savedDevice.Values -and $savedDevice.Values.$PkeyEfxModes) {
 }
 if ($original) {
     if ($NoChain) {
-        Write-Host "The device's own effect $original is switched off while EQ Box is installed (-NoChain)."
+        Write-Host "The device's own effect $original is switched off while the Equaliser is installed (-NoChain)."
     } else {
-        Write-Host "Keeping the device's own effect $original`: it runs after EQ Box's EQ."
+        Write-Host "Keeping the device's own effect $original`: it runs after the Equaliser."
     }
 }
 
@@ -189,14 +216,14 @@ if ($original) {
 Write-Host 'Registering the engine...'
 
 # The engine reports what it's doing to the Application event log.
-if (-not [System.Diagnostics.EventLog]::SourceExists('EQ Box')) {
-    New-EventLog -LogName Application -Source 'EQ Box'
+if (-not [System.Diagnostics.EventLog]::SourceExists($EventSource)) {
+    New-EventLog -LogName Application -Source $EventSource
 }
 
 # COM class
 $c = "HKLM:\SOFTWARE\Classes\CLSID\$ClsidText"
 New-Item -Force -Path $c | Out-Null
-Set-Item -Path $c -Value 'EQ Box'
+Set-Item -Path $c -Value 'TAW Equaliser'
 New-Item -Force -Path "$c\InprocServer32" | Out-Null
 Set-Item -Path "$c\InprocServer32" -Value $dllTarget
 New-ItemProperty -Force -Path "$c\InprocServer32" -Name ThreadingModel -Value 'Both' -PropertyType String | Out-Null
@@ -204,21 +231,21 @@ New-ItemProperty -Force -Path "$c\InprocServer32" -Name ThreadingModel -Value 'B
 # Audio engine registration
 $a = "HKLM:\SOFTWARE\Classes\AudioEngine\AudioProcessingObjects\$ClsidText"
 New-Item -Force -Path $a | Out-Null
-$strings = @{ FriendlyName = 'EQ Box'; Copyright = "Timster's Audio Works"; APOInterface0 = $IidApoText }
+$strings = @{ FriendlyName = 'TAW Equaliser'; Copyright = "Timster's Audio Works"; APOInterface0 = $IidApoText }
 foreach ($k in $strings.Keys) { New-ItemProperty -Force -Path $a -Name $k -Value $strings[$k] -PropertyType String | Out-Null }
 # MaxInstances -1 is stored as the DWORD 0xFFFFFFFF (no limit).
 $dwords = @{ MajorVersion = 0; MinorVersion = 1; Flags = 15; MinInputConnections = 1; MaxInputConnections = 1;
              MinOutputConnections = 1; MaxOutputConnections = 1; MaxInstances = -1; NumAPOInterfaces = 1 }
 foreach ($k in $dwords.Keys) { New-ItemProperty -Force -Path $a -Name $k -Value ([int]$dwords[$k]) -PropertyType DWord | Out-Null }
 
-# The device: EQ Box as its endpoint effect, in the default processing mode
+# The device: the Equaliser as its endpoint effect, in the default processing mode
 Write-Host 'Taking ownership of the device''s effect settings (saved for removal)...'
 Grant-KeyAccess $aclTarget
 $fxKey = "$($device.Key)\FxProperties"
 if (-not (Test-Path -LiteralPath $fxKey)) { New-Item -Path $fxKey | Out-Null }
 New-ItemProperty -Force -LiteralPath $fxKey -Name $PkeyEfx -Value $ClsidText -PropertyType String | Out-Null
 if ($original -and -not $NoChain) {
-    # EQ Box runs the driver's effect itself, in every mode the driver's
+    # The engine runs the driver's effect itself, in every mode the driver's
     # effect offered.
     New-ItemProperty -Force -LiteralPath $fxKey -Name $PkeyChained -Value $original -PropertyType String | Out-Null
     $modes = @($originalModes | Where-Object { $_ })
@@ -243,11 +270,11 @@ Write-Host 'Restarting Windows audio...'
 Restart-Service -Name audiosrv -Force
 
 Write-Host ''
-Write-Host "Done. EQ Box is on: $($device.Label)" -ForegroundColor Green
+Write-Host "Done. The Equaliser is on: $($device.Label)" -ForegroundColor Green
 Write-Host ''
 Write-Host 'Next:'
-Write-Host '  1. Open EQ Box, set System to "Windows (system-wide)", and press Run / Stop.'
+Write-Host '  1. Open TAW Equaliser, set System to "Windows (system-wide)", and press Run / Stop.'
 Write-Host '  2. Play music in any app on that device and move the EQ.'
 Write-Host ''
 Write-Host 'To undo: run remove-engine.ps1 from an Administrator PowerShell.'
-Write-Host 'If a device goes silent: Settings > System > Sound > (device) > Audio enhancements: Off bypasses EQ Box at once.'
+Write-Host 'If a device goes silent: Settings > System > Sound > (device) > Audio enhancements: Off bypasses the Equaliser at once.'

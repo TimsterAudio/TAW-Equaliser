@@ -1,9 +1,22 @@
 # Shared by install-engine.ps1 and remove-engine.ps1.
 
-$DllName      = 'eq_box_apo.dll'
-$InstallDir   = Join-Path $env:ProgramFiles 'EQ Box'
+$DllName      = 'taw_equaliser_apo.dll'
+$InstallDir   = Join-Path $env:ProgramFiles "Timster's Audio Works\Equaliser"
 $BackupDir    = Join-Path $InstallDir 'backup'
-$SettingsDir  = Join-Path $env:ProgramData 'EQ Box'
+$SettingsDir  = Join-Path $env:ProgramData "Timster's Audio Works\Equaliser"
+$EventSource  = 'TAW Equaliser'
+
+# Where the engine lived when the app was called EQ Box (up to 0.2). Removal
+# cleans these up too, and install offers to remove an EQ Box first.
+$LegacyDllName      = 'eq_box_apo.dll'
+$LegacyInstallDir   = Join-Path $env:ProgramFiles 'EQ Box'
+$LegacySettingsDir  = Join-Path $env:ProgramData 'EQ Box'
+$LegacyEventSource  = 'EQ Box'
+
+function Test-LegacyInstall {
+    (Test-Path -LiteralPath (Join-Path $LegacyInstallDir $LegacyDllName)) -or
+        (Test-Path -LiteralPath (Join-Path $LegacyInstallDir 'backup'))
+}
 
 # Never change: installed systems point at this CLSID.
 $ClsidText    = '{0FEBC01A-A301-491F-BBCD-17284A13CB61}'
@@ -13,7 +26,7 @@ $ModeDefault  = '{C18E2F7E-933D-4965-B7D1-1EEF228D2AF3}'   # AUDIO_SIGNALPROCESS
 # FxProperties value names (property keys)
 $PkeyEfx      = '{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},7'  # PKEY_FX_EndpointEffectClsid
 $PkeyEfxModes = '{d3993a3f-99c2-4402-b5ec-a92a0367664b},7'  # PKEY_EFX_ProcessingModes_Supported_For_Streaming
-# EQ Box's own: the driver's endpoint effect, which the engine runs after
+# The engine's own: the driver's endpoint effect, which the engine runs after
 # the EQ. Never change it: installed systems use it (see chain.rs).
 $PkeyChained  = '{0febc01a-a301-491f-bbcd-17284a13cb61},1'
 

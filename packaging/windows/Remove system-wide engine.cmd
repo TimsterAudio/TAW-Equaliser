@@ -1,5 +1,5 @@
 @echo off
-rem Removes EQ Box's system-wide engine and puts every device back as it was.
+rem Removes the TAW Equaliser's system-wide engine (or an EQ Box one) and puts every device back as it was.
 rem Double-click it. Windows asks for administrator permission, then the
 rem PowerShell window shows what it's doing; close it when it's finished.
 set "EQBOX_SCRIPT=%~dp0remove-engine.ps1"

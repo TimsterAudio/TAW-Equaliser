@@ -2,7 +2,7 @@
 name = "eq-core"
 version.workspace = true
 edition.workspace = true
-description = "EQ Box's filters, presets and settings, shared by the app and the Windows engine"
+description = "The Equaliser's filters, presets and settings, shared by the app and the Windows engine"
 publish = false
 
 [dependencies]

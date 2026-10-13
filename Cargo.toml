@@ -1,16 +1,16 @@
 [workspace]
-members = ["crates/eq-core", "crates/eq-box-apo"]
+members = ["crates/eq-core", "crates/taw-equaliser-apo"]
 
 [workspace.package]
 # The release version for the whole project; bumping it publishes a release.
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 [package]
-name = "eq-box"
+name = "taw-equaliser"
 version.workspace = true
 edition.workspace = true
-description = "EQ Box: a native 10-band parametric EQ for Windows (WASAPI/ASIO) and Linux (PipeWire)"
+description = "Timster's Audio Works Equaliser (EQ-001): a native 10-band parametric EQ for Windows (system-wide, WASAPI, ASIO) and Linux (PipeWire)"
 authors = ["Timster's Audio Works"]
 publish = false
 

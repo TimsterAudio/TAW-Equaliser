@@ -1,4 +1,4 @@
-//! Keeps the engine's settings in step with the file the EQ Box window
+//! Keeps the engine's settings in step with the file the the Equaliser window
 //! writes. One thread per process, shared by every engine instance.
 
 use crate::events::{self, Level};
@@ -46,7 +46,7 @@ pub fn shared() -> Arc<Shared> {
             // If the thread can't start, the engine still runs on the
             // settings it read just now.
             let _ = std::thread::Builder::new()
-                .name("eq-box-settings".into())
+                .name("taw-equaliser-settings".into())
                 .spawn(move || watch(path, watched));
             shared
         })
@@ -104,7 +104,7 @@ fn watch(path: std::path::PathBuf, shared: Arc<Shared>) {
                 if !last_error.is_empty() {
                     events::log(Level::Info, "settings readable again");
                 } else {
-                    events::log(Level::Debug, "settings updated from the EQ Box window");
+                    events::log(Level::Debug, "settings updated from the Equaliser window");
                 }
                 last_error.clear();
                 seen = now;

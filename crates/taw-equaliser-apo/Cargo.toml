@@ -1,12 +1,12 @@
 [package]
-name = "eq-box-apo"
+name = "taw-equaliser-apo"
 version.workspace = true
 edition.workspace = true
-description = "EQ Box's system-wide engine for Windows: an Audio Processing Object (APO) DLL"
+description = "The TAW Equaliser's system-wide engine for Windows: an Audio Processing Object (APO) DLL"
 publish = false
 
 [lib]
-name = "eq_box_apo"
+name = "taw_equaliser_apo"
 crate-type = ["cdylib"]
 
 [dependencies]

@@ -1,11 +1,11 @@
-//! The device's own effect, kept running after EQ Box's EQ.
+//! The device's own effect, kept running after the Equaliser's EQ.
 //!
 //! Many sound card drivers put their own effect (speaker tuning,
-//! "enhancements") in the slot EQ Box installs into. Setup doesn't throw it
-//! away: it records its CLSID in the device's effect settings under EQ Box's
+//! "enhancements") in the slot the Equaliser installs into. Setup doesn't throw it
+//! away: it records its CLSID in the device's effect settings under the Equaliser's
 //! own key, and the engine creates that effect itself and runs the sound
 //! through it after the EQ. If the effect can't be created or refuses to
-//! start, EQ Box carries on without it and says so in the event log.
+//! start, the Equaliser carries on without it and says so in the event log.
 
 use crate::events::{self, Level};
 use crate::CLSID_EQ_BOX_APO;
@@ -17,7 +17,7 @@ use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
 use windows::Win32::System::Variant::VT_LPWSTR;
 use windows_core::{Interface, Result, GUID};
 
-/// Where setup records the effect EQ Box replaced, in the device's effect
+/// Where setup records the effect the Equaliser replaced, in the device's effect
 /// settings (`FxProperties`). Never change it: installed systems use it.
 pub const PKEY_CHAINED_EFFECT: PROPERTYKEY = PROPERTYKEY {
     fmtid: CLSID_EQ_BOX_APO,
@@ -65,7 +65,7 @@ pub fn parse_guid(text: &str) -> Option<GUID> {
 }
 
 impl Chained {
-    /// Creates and initialises the effect with the same setup data EQ Box
+    /// Creates and initialises the effect with the same setup data the Equaliser
     /// was given, so it sees the same device and processing mode.
     pub fn create(clsid: GUID, data: &[u8]) -> Result<Chained> {
         let apo: IAudioProcessingObject =
@@ -104,7 +104,7 @@ impl Chained {
             }
         };
         // It may answer with a different format it would rather have;
-        // EQ Box needs it to take the format as it is.
+        // The Equaliser needs it to take the format as it is.
         match r {
             Ok(t) => {
                 t.as_raw() == requested.as_raw()
@@ -119,7 +119,7 @@ impl Chained {
         }
     }
 
-    /// Starts it on EQ Box's output, writing into its own buffer.
+    /// Starts it on the Equaliser's output, writing into its own buffer.
     pub fn lock(&mut self, output: &APO_CONNECTION_DESCRIPTOR, channels: usize) -> Result<()> {
         self.scratch = vec![0.0; output.u32MaxFrameCount as usize * channels];
         let desc = APO_CONNECTION_DESCRIPTOR {
@@ -155,7 +155,7 @@ impl Chained {
         unsafe { self.apo.GetLatency() }.unwrap_or(0)
     }
 
-    /// Runs it on `conn` (EQ Box's output) and copies its result back.
+    /// Runs it on `conn` (the Equaliser's output) and copies its result back.
     /// Real-time: no allocation, no locks.
     pub fn process(&mut self, conn: &mut APO_CONNECTION_PROPERTY, channels: usize) {
         let n = conn.u32ValidFrameCount as usize * channels;

@@ -1,4 +1,4 @@
-//! The EQ Box panel.
+//! The Equaliser panel.
 
 use super::graph::{self, fmt_freq};
 use super::spectrum::{self, Look, Scheme};
@@ -18,7 +18,7 @@ use std::sync::Arc;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The panel is laid out at this size and scaled to fit the window.
 pub const DESIGN: Vec2 = Vec2::new(1640.0, 884.0);
-const STORAGE_KEY: &str = "eq-box";
+const STORAGE_KEY: &str = "taw-equaliser";
 
 /// Everything remembered between runs.
 #[derive(Clone, Serialize, Deserialize)]
@@ -355,7 +355,7 @@ impl EqApp {
         };
         let preset = crate::preset::parse(&text);
         if preset.bands.is_empty() && preset.preamp_db == 0.0 {
-            return self.notify("That file has no Preamp or Filter lines EQ Box can use");
+            return self.notify("That file has no Preamp or Filter lines the Equaliser can use");
         }
         let (bands, preamp) = preset.to_panel();
         self.s.bands = bands;
@@ -532,7 +532,7 @@ impl EqApp {
                 },
             );
             job.append(
-                "EQ Box",
+                "Equaliser",
                 0.0,
                 TextFormat {
                     font_id: font(F_MAKER_BOLD, 13.0),
@@ -553,7 +553,7 @@ impl EqApp {
         slanted_text(
             ui,
             at(24.0, 50.0),
-            "EQ BOX",
+            "EQUALISER",
             font(F_LOGO, 30.0),
             th.legend,
             3.0,
@@ -563,7 +563,7 @@ impl EqApp {
             ui.painter(),
             at(22.0, 92.0),
             Align2::LEFT_TOP,
-            &format!("EQ-10 · TEN BAND PARAMETRIC EQUALISER · V{VERSION}"),
+            &format!("EQ-001 · TEN BAND PARAMETRIC EQUALISER · V{VERSION}"),
             font(F_LEGEND, 10.0),
             th.legend_dim,
             2.4,
@@ -919,7 +919,7 @@ impl EqApp {
                 if is_win_engine {
                     "WINDOWS AUDIO (ALL APPS)"
                 } else {
-                    "EQ BOX SINK (APPS PLAY HERE)"
+                    "TAW EQUALISER (APPS PLAY HERE)"
                 },
                 font(F_MONO, 13.0),
                 LCD_INK,
@@ -1051,22 +1051,22 @@ impl EqApp {
             (e.clone(), LED)
         } else if is_win_engine && self.engine == EngineState::NotInstalled {
             (
-                "EQ Box's engine isn't installed yet. Press Install, allow Windows' permission prompt, and pick your output in the window that opens. Every app on that output then goes through EQ Box, with no virtual cable.".to_string(),
+                "The Equaliser's engine isn't installed yet. Press Install, allow Windows' permission prompt, and pick your output in the window that opens. Every app on that output then goes through EQ Box, with no virtual cable.".to_string(),
                 th.legend_dim,
             )
         } else if is_win_engine && self.engine == EngineState::Outdated {
             (
-                "The engine installed in Windows is older than this EQ Box, so some settings (such as the HPF, LPF and notch filters) have no effect. Press Update, allow Windows' permission prompt, and pick the same output to install the new engine.".to_string(),
+                "The engine installed in Windows is older than this Equaliser, so some settings (such as the HPF, LPF and notch filters) have no effect. Press Update, allow Windows' permission prompt, and pick the same output to install the new engine.".to_string(),
                 LED,
             )
         } else if is_win_engine {
             (
-                "EQ Box's engine runs inside Windows and equalises every app on the outputs it's installed on (Add puts it on another, Remove takes it off them all). Run sends your settings to it, and they stay set after EQ Box closes. Use Bypass to switch the EQ off.".to_string(),
+                "The Equaliser's engine runs inside Windows and equalises every app on the outputs it's installed on (Add puts it on another, Remove takes it off them all). Run sends your settings to it, and they stay set after EQ Box closes. Use Bypass to switch the EQ off.".to_string(),
                 th.legend_dim,
             )
         } else if is_pw_sink {
             (
-                "EQ Box adds an output called \"EQ Box\". Choose it in your sound settings (or route apps to it with qpwgraph / Helvum) and EQ Box plays the result to the Output above.".to_string(),
+                "The Equaliser adds an output called \"TAW Equaliser\". Choose it in your sound settings (or route apps to it with qpwgraph / Helvum) and the Equaliser plays the result to the Output above.".to_string(),
                 th.legend_dim,
             )
         } else if self
@@ -1076,7 +1076,7 @@ impl EqApp {
             .is_some_and(|b| b.eq_ignore_ascii_case("asio"))
         {
             (
-                "Pick your interface for Input and Output. Send your playback into its inputs (a virtual channel in its mixer), and EQ Box plays the result to its outputs.".to_string(),
+                "Pick your interface for Input and Output. Send your playback into its inputs (a virtual channel in its mixer), and the Equaliser plays the result to its outputs.".to_string(),
                 th.legend_dim,
             )
         } else if self

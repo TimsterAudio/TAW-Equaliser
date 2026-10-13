@@ -1,4 +1,4 @@
-//! EQ Box's system-wide engine for Windows.
+//! The Equaliser's system-wide engine for Windows.
 //!
 //! Windows loads this DLL into its audio engine (`audiodg.exe`) for each
 //! output it's installed on, and runs every app's sound through it. It's an
@@ -6,7 +6,7 @@
 //! `DllGetClassObject`, then calls on its real-time thread with each buffer.
 //!
 //! It runs the same `Equalizer` as the app. Settings come from the file the
-//! EQ Box window writes (see `eq_core::engine_settings`), picked up by a
+//! The Equaliser window writes (see `eq_core::engine_settings`), picked up by a
 //! background thread and handed to the audio thread through atomics.
 //!
 //! On other systems this crate builds to nothing.
@@ -24,7 +24,7 @@ use windows::Win32::Foundation::{CLASS_E_CLASSNOTAVAILABLE, E_POINTER, S_FALSE};
 use windows::Win32::System::Com::IClassFactory;
 use windows_core::{Interface, GUID, HRESULT};
 
-/// EQ Box's engine CLSID. Never change it: installed systems point at it.
+/// The Equaliser's engine CLSID. Never change it: installed systems point at it.
 pub const CLSID_EQ_BOX_APO: GUID = GUID::from_u128(0x0febc01a_a301_491f_bbcd_17284a13cb61);
 
 /// The same engine without chaining, which the test harness registers for

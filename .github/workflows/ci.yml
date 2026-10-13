@@ -7,7 +7,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
 jobs:
   linux:
@@ -19,16 +18,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libpipewire-0.3-dev libspa-0.2-dev libasound2-dev libclang-dev pkg-config
-      # TAW-Panel is a private repo: cargo fetches it with a read-only token
-      # (repo secret TAW_PANEL_TOKEN). Not needed if TAW-Panel is public.
-      - name: Access TAW-Panel
-        shell: bash
-        env:
-          TOKEN: ${{ secrets.TAW_PANEL_TOKEN }}
-        run: |
-          if [ -n "$TOKEN" ]; then
-            git config --global url."https://x-access-token:${TOKEN}@github.com/TimsterAudio/TAW-Panel".insteadOf "https://github.com/TimsterAudio/TAW-Panel"
-          fi
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -39,10 +28,10 @@ jobs:
       - run: cargo build --release
       - uses: actions/upload-artifact@v4
         with:
-          name: eq-box-linux-x86_64
+          name: taw-equaliser-linux-x86_64
           path: |
-            target/release/eq-box
-            packaging/linux/eq-box.desktop
+            target/release/taw-equaliser
+            packaging/linux/taw-equaliser.desktop
 
   windows:
     name: Windows (${{ matrix.asio && 'WASAPI + ASIO' || 'WASAPI' }})
@@ -53,16 +42,6 @@ jobs:
         asio: [false, true]
     steps:
       - uses: actions/checkout@v4
-      # TAW-Panel is a private repo: cargo fetches it with a read-only token
-      # (repo secret TAW_PANEL_TOKEN). Not needed if TAW-Panel is public.
-      - name: Access TAW-Panel
-        shell: bash
-        env:
-          TOKEN: ${{ secrets.TAW_PANEL_TOKEN }}
-        run: |
-          if [ -n "$TOKEN" ]; then
-            git config --global url."https://x-access-token:${TOKEN}@github.com/TimsterAudio/TAW-Panel".insteadOf "https://github.com/TimsterAudio/TAW-Panel"
-          fi
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -80,7 +59,7 @@ jobs:
         run: |
           if [ "${{ matrix.asio }}" = "true" ]; then
             export LIBCLANG_PATH="C:/Program Files/LLVM/bin"
-            cargo build --release --workspace --features eq-box/asio
+            cargo build --release --workspace --features taw-equaliser/asio
           else
             cargo build --release --workspace
           fi
@@ -90,13 +69,13 @@ jobs:
         if: ${{ !matrix.asio }}
         shell: bash
         run: |
-          cargo build --release -p eq-box-apo --example apo_harness
+          cargo build --release -p taw-equaliser-apo --example apo_harness
           cp target/release/examples/apo_harness.exe target/release/
           cd target/release && ./apo_harness.exe
       - uses: actions/upload-artifact@v4
         with:
-          name: eq-box-windows-x86_64${{ matrix.asio && '-asio' || '' }}
+          name: taw-equaliser-windows-x86_64${{ matrix.asio && '-asio' || '' }}
           path: |
-            target/release/eq-box.exe
-            target/release/eq_box_apo.dll
+            target/release/taw-equaliser.exe
+            target/release/taw_equaliser_apo.dll
             packaging/windows/*.ps1

@@ -1,6 +1,6 @@
 # Panel design
 
-EQ Box uses Drone Box's panel language, so the two look like the same family of hardware. Drone Box's `docs/DESIGN.md` is the reference. This page covers how EQ Box applies it.
+the Equaliser uses Drone Box's panel language, so the two look like the same family of hardware. Drone Box's `docs/DESIGN.md` is the reference. This page covers how the Equaliser applies it.
 
 ## Shared with Drone Box
 
@@ -16,7 +16,7 @@ EQ Box uses Drone Box's panel language, so the two look like the same family of 
 - **Knob colour shows what a control does:** green (tone) for Freq and Q, amber for the filter Type, blue for the audio buffer, and black for levels (Preamp). The **Knobs** switch chooses between Colour (a tinted top) and Pointer (a black knob with a coloured pointer).
 - **Fit to window:** the panel is laid out at 1640 × 884 and scaled to fit the window, so it never re-wraps.
 
-## EQ Box specifics
+## the Equaliser specifics
 
 | Element | Choice |
 |---|---|

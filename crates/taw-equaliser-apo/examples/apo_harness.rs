@@ -1,8 +1,8 @@
-//! Loads `eq_box_apo.dll` the way the Windows audio engine does, runs a
+//! Loads `taw_equaliser_apo.dll` the way the Windows audio engine does, runs a
 //! tone through it and checks the EQ, including a live settings change.
 //!
-//! cargo build --release -p eq-box-apo --example apo_harness
-//! then run apo_harness.exe from the folder holding eq_box_apo.dll
+//! cargo build --release -p taw-equaliser-apo --example apo_harness
+//! then run apo_harness.exe from the folder holding taw_equaliser_apo.dll
 //! (on Linux: `wine apo_harness.exe`). It writes the engine's settings file,
 //! so don't run it on a machine where the engine is in use.
 
@@ -345,7 +345,9 @@ mod win {
                 .map_err(|e| format!("LockForProcess: {e}"))?;
             let rt: IAudioProcessingObjectRT = apo.cast().map_err(|e| e.to_string())?;
             let g = measure(&rt, 1000.0);
-            println!("     1 kHz through EQ Box and the chained effect: {g:+.2} dB (expect +24)");
+            println!(
+                "     1 kHz through the Equaliser and the chained effect: {g:+.2} dB (expect +24)"
+            );
             let r = check(
                 (g - 24.0).abs() < 0.3,
                 "runs the device's own effect after the EQ",
@@ -405,7 +407,7 @@ mod win {
 
     pub fn run() -> std::result::Result<(), String> {
         // Settings first: +12 dB at band 6 (1 kHz bell). With `--from-app`,
-        // EQ Box itself must already have written that (band 6 at +12 dB),
+        // The Equaliser itself must already have written that (band 6 at +12 dB),
         // which checks the whole chain from the panel to the sound.
         let path = engine_settings::default_path();
         let from_app = std::env::args().any(|a| a == "--from-app");
@@ -419,8 +421,8 @@ mod win {
 
         unsafe {
             let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-            let dll =
-                LoadLibraryW(w!("eq_box_apo.dll")).map_err(|e| format!("LoadLibrary: {e}"))?;
+            let dll = LoadLibraryW(w!("taw_equaliser_apo.dll"))
+                .map_err(|e| format!("LoadLibrary: {e}"))?;
             let proc = GetProcAddress(dll, PCSTR(c"DllGetClassObject".as_ptr() as _))
                 .ok_or("no DllGetClassObject")?;
             let get: GetClassObject = core::mem::transmute(proc);
@@ -443,7 +445,7 @@ mod win {
             let flags = (*props).Flags.0;
             CoTaskMemFree(Some(props as _));
             check(
-                name == "EQ Box" && flags & APO_FLAG_INPLACE.0 != 0,
+                name == "TAW Equaliser" && flags & APO_FLAG_INPLACE.0 != 0,
                 "registration properties",
             )?;
 

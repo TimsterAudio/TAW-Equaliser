@@ -1,5 +1,5 @@
 //! Milestones and problems, sent to the Windows Event Log (Application,
-//! source "EQ Box") and to the debugger output. The Windows audio engine
+//! source "TAW Equaliser") and to the debugger output. The Windows audio engine
 //! runs with a restricted token that may not write files, but the
 //! Application log accepts write-restricted processes.
 //!
@@ -28,7 +28,7 @@ pub enum Level {
 
 pub fn log(level: Level, msg: &str) {
     let text = HSTRING::from(format!(
-        "EQ Box engine (process {}): {msg}",
+        "TAW Equaliser engine (process {}): {msg}",
         std::process::id()
     ));
     let kind = match level {
@@ -42,7 +42,7 @@ pub fn log(level: Level, msg: &str) {
     };
     unsafe {
         OutputDebugStringW(&text);
-        if let Ok(source) = RegisterEventSourceW(PCWSTR::null(), w!("EQ Box")) {
+        if let Ok(source) = RegisterEventSourceW(PCWSTR::null(), w!("TAW Equaliser")) {
             let strings = [PCWSTR(text.as_ptr())];
             let _ = ReportEventW(source, kind, 0, 1000, None, 0, Some(&strings), None);
             let _ = DeregisterEventSource(source);

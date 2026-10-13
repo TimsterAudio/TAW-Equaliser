@@ -1,5 +1,5 @@
 @echo off
-rem Shows what EQ Box's system-wide engine is doing (changes nothing).
+rem Shows what the TAW Equaliser's system-wide engine is doing (changes nothing).
 rem Double-click it. Windows asks for administrator permission, then the
 rem PowerShell window shows what it's doing; close it when it's finished.
 set "EQBOX_SCRIPT=%~dp0diagnose-engine.ps1"

@@ -1,11 +1,13 @@
 <#
 .SYNOPSIS
-    Removes EQ Box's system-wide engine and puts every device back as it was.
+    Removes the TAW Equaliser's system-wide engine (or an EQ Box one, its old
+    name) and puts every device back as it was.
 
 .DESCRIPTION
     Restores each device's effect settings from the backups install-engine.ps1
     made, unregisters the engine, deletes the DLL and restarts Windows audio.
-    The EQ Box app itself is untouched.
+    It finds both this version's install and one made when the app was
+    called EQ Box. The app itself is untouched.
 
     Run from an Administrator PowerShell:
         powershell -ExecutionPolicy Bypass -File .\remove-engine.ps1
@@ -26,12 +28,22 @@ if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProces
 . (Join-Path $PSScriptRoot 'engine-common.ps1')
 
 Write-Host ''
-Write-Host 'EQ Box: remove the system-wide engine' -ForegroundColor Cyan
+Write-Host 'TAW Equaliser: remove the system-wide engine' -ForegroundColor Cyan
 Write-Host ''
 
+# Each install kept its DLL and backups in its own folder: the old EQ Box
+# one first (its backups are the oldest, so they hold the true originals),
+# then this version's.
+$roots = @(
+    @{ Dir = $LegacyInstallDir; Dll = $LegacyDllName },
+    @{ Dir = $InstallDir; Dll = $DllName }
+)
+$backupDirs = @($roots | ForEach-Object { Join-Path $_.Dir 'backup' } |
+    Where-Object { Test-Path -LiteralPath $_ })
+
 $backups = @()
-if (Test-Path -LiteralPath $BackupDir) {
-    $backups = @(Get-ChildItem -LiteralPath $BackupDir -Filter '*.json' |
+foreach ($dir in $backupDirs) {
+    $backups += @(Get-ChildItem -LiteralPath $dir -Filter '*.json' |
         Where-Object { $_.Name -ne 'global.json' -and $_.Name -notlike '*.acl.json' })
 }
 foreach ($b in $backups) {
@@ -39,19 +51,25 @@ foreach ($b in $backups) {
     Write-Host "Restoring: $label"
 }
 
-# Devices with EQ Box but no backup (shouldn't happen) just lose EQ Box.
-$orphans = @(Get-RenderDevices | Where-Object HasEqBox | Where-Object {
-    -not (Test-Path -LiteralPath (Join-Path $BackupDir "$($_.Guid).json"))
-})
-foreach ($o in $orphans) { Write-Host "Removing EQ Box from: $($o.Label)" }
+function Test-HasBackup([string]$Guid) {
+    foreach ($dir in $backupDirs) {
+        if (Test-Path -LiteralPath (Join-Path $dir "$Guid.json")) { return $true }
+    }
+    return $false
+}
+
+# Devices with the engine but no backup (shouldn't happen) just lose it.
+$orphans = @(Get-RenderDevices | Where-Object HasEqBox | Where-Object { -not (Test-HasBackup $_.Guid) })
+foreach ($o in $orphans) { Write-Host "Removing the engine from: $($o.Label)" }
 
 # Each backed-up device: the values first, then the key's original owner and
 # permissions (which takes away the access setup gave Administrators).
 foreach ($file in $backups) {
     $saved = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json
     $fx = "$RenderRoot\$($file.BaseName)\FxProperties"
-    # Only touch the values if EQ Box is actually on the device (an install
-    # that stopped early never changed them).
+    # Only touch the values if the engine is actually on the device (an
+    # install that stopped early never changed them, and a device already
+    # restored from an older backup no longer has it).
     $ours = (Test-Path -LiteralPath $fx) -and ((Get-Item -LiteralPath $fx).GetValue($PkeyEfx, $null) -eq $ClsidText)
     if ($ours) {
         if (-not $saved.FxExisted) {
@@ -67,7 +85,7 @@ foreach ($file in $backups) {
             }
         }
     }
-    $aclFile = Join-Path $BackupDir "$($file.BaseName).acl.json"
+    $aclFile = Join-Path $file.DirectoryName "$($file.BaseName).acl.json"
     if (Test-Path -LiteralPath $aclFile) {
         $acl = Get-Content -LiteralPath $aclFile -Raw | ConvertFrom-Json
         if (Test-Path -LiteralPath "HKLM:\$($acl.Key)") {
@@ -76,15 +94,15 @@ foreach ($file in $backups) {
     }
 }
 
-# Devices with EQ Box but no backup (shouldn't happen) just lose EQ Box.
 foreach ($o in $orphans) {
     Remove-ItemProperty -LiteralPath "$($o.Key)\FxProperties" -Name $PkeyEfx -ErrorAction SilentlyContinue
     Remove-ItemProperty -LiteralPath "$($o.Key)\FxProperties" -Name $PkeyChained -ErrorAction SilentlyContinue
 }
 
-# The protected-audio setting, as it was before
-$global = Join-Path $BackupDir 'global.json'
-if (Test-Path -LiteralPath $global) {
+# The protected-audio setting, as it was before the first install
+$global = $backupDirs | ForEach-Object { Join-Path $_ 'global.json' } |
+    Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if ($global) {
     $prev = (Get-Content -LiteralPath $global -Raw | ConvertFrom-Json).DisableProtectedAudioDG
     $audio = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Audio'
     if ($null -eq $prev) {
@@ -95,8 +113,10 @@ if (Test-Path -LiteralPath $global) {
 }
 
 # Registrations
-if ([System.Diagnostics.EventLog]::SourceExists('EQ Box')) {
-    Remove-EventLog -Source 'EQ Box' -ErrorAction SilentlyContinue
+foreach ($source in @($EventSource, $LegacyEventSource)) {
+    if ([System.Diagnostics.EventLog]::SourceExists($source)) {
+        Remove-EventLog -Source $source -ErrorAction SilentlyContinue
+    }
 }
 Remove-Item -LiteralPath "HKLM:\SOFTWARE\Classes\AudioEngine\AudioProcessingObjects\$ClsidText" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath "HKLM:\SOFTWARE\Classes\CLSID\$ClsidText" -Recurse -Force -ErrorAction SilentlyContinue
@@ -104,16 +124,26 @@ Remove-Item -LiteralPath "HKLM:\SOFTWARE\Classes\CLSID\$ClsidText" -Recurse -For
 Write-Host 'Restarting Windows audio...'
 Stop-Service -Name audiosrv -Force
 try {
-    Remove-Item -LiteralPath (Join-Path $InstallDir $DllName) -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $BackupDir -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath (Join-Path $InstallDir 'setup') -Recurse -Force -ErrorAction SilentlyContinue
-    if (-not (Get-ChildItem -LiteralPath $InstallDir -ErrorAction SilentlyContinue)) {
-        Remove-Item -LiteralPath $InstallDir -Force -ErrorAction SilentlyContinue
+    foreach ($r in $roots) {
+        Remove-Item -LiteralPath (Join-Path $r.Dir $r.Dll) -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath (Join-Path $r.Dir 'backup') -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath (Join-Path $r.Dir 'setup') -Recurse -Force -ErrorAction SilentlyContinue
+        if ((Test-Path -LiteralPath $r.Dir) -and -not (Get-ChildItem -LiteralPath $r.Dir -ErrorAction SilentlyContinue)) {
+            Remove-Item -LiteralPath $r.Dir -Force -ErrorAction SilentlyContinue
+        }
+    }
+    # The family folder, if the Equaliser was all that was in it.
+    $family = Split-Path -Parent $InstallDir
+    if ((Test-Path -LiteralPath $family) -and -not (Get-ChildItem -LiteralPath $family -ErrorAction SilentlyContinue)) {
+        Remove-Item -LiteralPath $family -Force -ErrorAction SilentlyContinue
     }
 } finally {
     Start-Service -Name audiosrv
 }
 
+# EQ Box's settings file is never used again.
+Remove-Item -LiteralPath $LegacySettingsDir -Recurse -Force -ErrorAction SilentlyContinue
+
 Write-Host ''
-Write-Host 'Done. EQ Box is removed and every device is back as it was.' -ForegroundColor Green
-Write-Host "(EQ Box's settings file in $SettingsDir is kept; delete it if you like.)"
+Write-Host 'Done. The engine is removed and every device is back as it was.' -ForegroundColor Green
+Write-Host "(The settings file in $SettingsDir is kept; delete it if you like.)"

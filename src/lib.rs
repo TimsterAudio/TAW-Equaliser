@@ -1,5 +1,5 @@
-//! The code behind EQ Box, the equaliser. (The SP-10 Spectrum Analyser is
-//! now its own program: TimsterAudio/TAW-Analyser.)
+//! The code behind the TAW Equaliser (EQ-001). (The spectrum analyser that
+//! used to come with it is now the TAW Analyser: TimsterAudio/TAW-Analyser.)
 
 // Index loops read best in the per-sample DSP code.
 #![allow(clippy::needless_range_loop)]

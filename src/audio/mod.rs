@@ -12,7 +12,7 @@ use crate::dsp::Equalizer;
 use crate::shared::{AnalyzerTap, Shared};
 use std::sync::Arc;
 
-/// Backend id for EQ Box's own PipeWire node.
+/// Backend id for the Equaliser's own PipeWire node.
 pub const PIPEWIRE_SINK: &str = "pipewire-sink";
 /// Backend id for the system-wide engine inside the Windows audio engine.
 pub const WINDOWS_ENGINE: &str = "windows-engine";

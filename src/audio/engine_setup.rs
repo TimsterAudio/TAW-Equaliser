@@ -1,7 +1,7 @@
 //! Installing and checking the Windows system-wide engine from the app.
 //!
 //! Setup itself is the PowerShell scripts in the `system-wide-engine`
-//! folder next to `eq-box.exe`. The app only starts them (Windows asks for
+//! folder next to `taw-equaliser.exe`. The app only starts them (Windows asks for
 //! administrator permission) and watches for the engine.
 
 use eq_core::engine_settings::{ENGINE_LEVEL, LEVEL_LINE};
@@ -16,7 +16,7 @@ pub enum EngineState {
     Idle,
     /// Running inside Windows audio.
     Active,
-    /// Running, but an older engine than this EQ Box: it can't play
+    /// Running, but an older engine than this Equaliser: it can't play
     /// everything the panel sends (such as the cut filters). Installing
     /// again updates it.
     Outdated,
@@ -32,8 +32,9 @@ pub fn engine_state() -> EngineState {
     }
     let dll = std::env::var_os("ProgramFiles").map(|p| {
         std::path::PathBuf::from(p)
-            .join("EQ Box")
-            .join("eq_box_apo.dll")
+            .join("Timster's Audio Works")
+            .join("Equaliser")
+            .join("taw_equaliser_apo.dll")
     });
     if !dll.is_some_and(|p| p.exists()) {
         return EngineState::NotInstalled;
@@ -90,11 +91,11 @@ pub fn launch(what: Setup) -> Result<std::process::Child, String> {
         .map_err(|e| e.to_string())?
         .parent()
         .map(|p| p.join("system-wide-engine"))
-        .ok_or("Can't tell where EQ Box is")?;
+        .ok_or("Can't tell where the Equaliser is")?;
     let path = dir.join(script);
     if !path.exists() {
         return Err(format!(
-            "Can't find {}. Keep the system-wide-engine folder next to eq-box.exe.",
+            "Can't find {}. Keep the system-wide-engine folder next to taw-equaliser.exe.",
             path.display()
         ));
     }

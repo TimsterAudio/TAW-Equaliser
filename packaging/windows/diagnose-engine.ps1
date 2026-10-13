@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Shows what EQ Box's system-wide engine is doing. Changes nothing.
+    Shows what the TAW Equaliser's system-wide engine is doing. Changes nothing.
 
 .DESCRIPTION
     Run from an Administrator PowerShell and send the output to the
@@ -29,6 +29,9 @@ Write-Host ("64-bit PowerShell: {0}" -f [Environment]::Is64BitProcess)
 Get-Service -Name audiosrv, AudioEndpointBuilder | ForEach-Object { Write-Host ("Service {0}: {1}" -f $_.Name, $_.Status) }
 $dll = Join-Path $InstallDir $DllName
 Write-Host ("Engine DLL: {0} ({1})" -f $dll, $(if (Test-Path -LiteralPath $dll) { (Get-Item -LiteralPath $dll).LastWriteTime } else { 'missing' }))
+if (Test-LegacyInstall) {
+    Write-Host ("An EQ Box engine (the old name) is also installed in {0}. Run remove-engine.ps1, then install again." -f $LegacyInstallDir) -ForegroundColor Yellow
+}
 $com = "HKLM:\SOFTWARE\Classes\CLSID\$ClsidText\InprocServer32"
 Write-Host ("COM registration: {0}" -f $(if (Test-Path -LiteralPath $com) { (Get-Item -LiteralPath $com).GetValue('') } else { 'missing' }))
 $apo = "HKLM:\SOFTWARE\Classes\AudioEngine\AudioProcessingObjects\$ClsidText"
@@ -54,7 +57,7 @@ if (Test-Path -LiteralPath $dll) {
 
 Section 'Playback devices'
 foreach ($d in Get-RenderDevices) {
-    $mark = if ($d.HasEqBox) { '  <-- EQ Box' } else { '' }
+    $mark = if ($d.HasEqBox) { '  <-- Equaliser' } else { '' }
     Write-Host ("{0}  state {1}  enhancements off: {2}  {3}{4}" -f $d.Guid, $d.State, $d.EnhancementsOff, $d.Label, $mark)
 }
 
@@ -68,7 +71,7 @@ foreach ($d in Get-RenderDevices | Where-Object HasEqBox) {
     }
 }
 
-Section 'Settings file (written by the EQ Box window)'
+Section 'Settings file (written by the Equaliser window)'
 $settings = Join-Path $SettingsDir 'engine.json'
 if (Test-Path -LiteralPath $settings) {
     Write-Host ("Last written: {0}" -f (Get-Item -LiteralPath $settings).LastWriteTime)
@@ -102,7 +105,7 @@ if (-not $found) {
 }
 
 Section 'Engine messages (Application event log, newest last)'
-$events = @(Get-EventLog -LogName Application -Source 'EQ Box' -Newest 40 -ErrorAction SilentlyContinue)
+$events = @(Get-EventLog -LogName Application -Source $EventSource -Newest 40 -ErrorAction SilentlyContinue)
 if ($events.Count -eq 0) {
     Write-Host 'None: the engine has not reported anything.'
 } else {

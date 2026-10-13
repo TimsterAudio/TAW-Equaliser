@@ -785,32 +785,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773fa9c96dd0dbef887e39d0ed6177f141cce4d68e6041df77570aa3702dfa13"
 
 [[package]]
-name = "eq-box"
-version = "0.2.0"
-dependencies = [
- "cpal",
- "eframe",
- "egui",
- "eq-core",
- "pipewire",
- "rfd",
- "rtrb",
- "serde",
- "taw-panel",
-]
-
-[[package]]
-name = "eq-box-apo"
-version = "0.2.0"
-dependencies = [
- "eq-core",
- "windows",
- "windows-core",
-]
-
-[[package]]
 name = "eq-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "rtrb",
  "serde",
@@ -2676,6 +2652,30 @@ name = "target-lexicon"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
+
+[[package]]
+name = "taw-equaliser"
+version = "0.3.0"
+dependencies = [
+ "cpal",
+ "eframe",
+ "egui",
+ "eq-core",
+ "pipewire",
+ "rfd",
+ "rtrb",
+ "serde",
+ "taw-panel",
+]
+
+[[package]]
+name = "taw-equaliser-apo"
+version = "0.3.0"
+dependencies = [
+ "eq-core",
+ "windows",
+ "windows-core",
+]
 
 [[package]]
 name = "taw-panel"

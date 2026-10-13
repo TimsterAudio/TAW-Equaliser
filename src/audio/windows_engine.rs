@@ -1,5 +1,5 @@
-//! "Windows (system-wide)": EQ Box's engine runs inside the Windows audio
-//! engine (see `crates/eq-box-apo`), so nothing here touches the audio path.
+//! "Windows (system-wide)": the Equaliser's engine runs inside the Windows audio
+//! engine (see `crates/taw-equaliser-apo`), so nothing here touches the audio path.
 //! This side writes the panel to the engine's settings file whenever it
 //! changes, and listens to the output through WASAPI loopback (read-only)
 //! for the meters and analyser.
@@ -32,7 +32,7 @@ pub fn start(
     let (stop_tx, stop_rx) = mpsc::channel::<()>();
     let (ready_tx, ready_rx) = mpsc::channel::<String>();
     let thread = std::thread::Builder::new()
-        .name("eq-box-engine-link".into())
+        .name("taw-equaliser-engine-link".into())
         .spawn(move || {
             // cpal streams may not move between threads, so this thread
             // owns the loopback stream as well as writing the settings.

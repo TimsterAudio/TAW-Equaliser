@@ -1,4 +1,4 @@
-//! The parts of EQ Box with no UI or audio-API code: the filters and the
+//! The parts of the Equaliser with no UI or audio-API code: the filters and the
 //! real-time equaliser, presets, the lock-free shared state, and the
 //! settings file the Windows engine reads. Both the app and the Windows
 //! engine DLL are built on this crate.

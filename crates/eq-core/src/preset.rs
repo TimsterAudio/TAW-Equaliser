@@ -7,7 +7,7 @@ use crate::dsp::{BandParams, FilterKind, NUM_BANDS, PREAMP_MAX_DB, PREAMP_MIN_DB
 pub struct ApoPreset {
     pub preamp_db: f32,
     pub bands: Vec<BandParams>,
-    /// Things the file asked for that EQ Box changed or couldn't do.
+    /// Things the file asked for that the Equaliser changed or couldn't do.
     pub warnings: Vec<String>,
 }
 
@@ -79,7 +79,7 @@ pub fn parse(text: &str) -> ApoPreset {
 
     if !unsupported.is_empty() {
         preset.warnings.push(format!(
-            "Skipped filter types EQ Box doesn't have: {}",
+            "Skipped filter types the Equaliser doesn't have: {}",
             unsupported.join(", ")
         ));
     }
@@ -262,7 +262,7 @@ pub fn bw_to_q(bw: f32) -> f32 {
 
 /// Write the panel as an APO-format preset.
 pub fn export(bands: &[BandParams], preamp_db: f32) -> String {
-    let mut s = String::from("# EQ Box preset (APO format)\n");
+    let mut s = String::from("# TAW Equaliser preset (APO format)\n");
     s += &format!("Preamp: {preamp_db:.1} dB\n");
     for (i, b) in bands.iter().enumerate() {
         let t = match b.kind {

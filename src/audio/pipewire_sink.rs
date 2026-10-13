@@ -1,4 +1,4 @@
-//! EQ Box as a PipeWire node: a virtual "EQ Box" sink that any app can play
+//! The Equaliser as a PipeWire node: a virtual "TAW Equaliser" sink that any app can play
 //! into, and a playback stream that sends the equalised audio on to a real
 //! output. This is the same two-stream shape as `pw-loopback`.
 
@@ -14,9 +14,9 @@ use std::time::Duration;
 
 const CHANNELS: usize = 2;
 const STRIDE: usize = CHANNELS * std::mem::size_of::<f32>();
-pub const NODE_NAME: &str = "eq_box";
+pub const NODE_NAME: &str = "taw_equaliser";
 
-/// Real outputs EQ Box can send to, by PipeWire node name.
+/// Real outputs the Equaliser can send to, by PipeWire node name.
 pub fn outputs() -> Vec<DeviceInfo> {
     use cpal::traits::{DeviceTrait, HostTrait};
     let Ok(host) = cpal::host_from_id(cpal::HostId::PipeWire) else {
@@ -31,6 +31,8 @@ pub fn outputs() -> Vec<DeviceInfo> {
             let node = id.id().to_string();
             if node.ends_with("_default")
                 || node.starts_with(NODE_NAME)
+                || node.starts_with("taw-equaliser")
+                || node.starts_with("eq_box")
                 || node.starts_with("eq-box")
             {
                 return None;
@@ -52,7 +54,7 @@ pub fn start(
     let (quit_tx, quit_rx) = pw::channel::channel::<()>();
     let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
     let thread = std::thread::Builder::new()
-        .name("eq-box-pipewire".into())
+        .name("taw-equaliser-pipewire".into())
         .spawn(move || {
             if let Err(e) = run(target, shared, tap, quit_rx, &ready_tx) {
                 let _ = ready_tx.send(Err(e));
@@ -64,7 +66,7 @@ pub fn start(
         thread: Some(thread),
     };
     match ready_rx.recv_timeout(Duration::from_secs(5)) {
-        Ok(Ok(())) => Ok(Running::new("PIPEWIRE  EQ BOX SINK".into(), stop)),
+        Ok(Ok(())) => Ok(Running::new("PIPEWIRE  TAW EQUALISER".into(), stop)),
         Ok(Err(e)) => Err(e),
         Err(_) => Err("PipeWire didn't answer. Is it running?".into()),
     }
@@ -148,30 +150,30 @@ fn run(
     });
 
     // The link group stops the session manager from wiring our own output
-    // back into our own sink, even when EQ Box is the default output.
-    let group = format!("eq-box-{}", std::process::id());
+    // back into our own sink, even when the Equaliser is the default output.
+    let group = format!("taw-equaliser-{}", std::process::id());
 
     let sink = pw::stream::StreamBox::new(
         &core,
-        "EQ Box",
+        "TAW Equaliser",
         properties! {
             *pw::keys::MEDIA_TYPE => "Audio",
             *pw::keys::MEDIA_CLASS => "Audio/Sink",
             *pw::keys::NODE_NAME => NODE_NAME,
-            *pw::keys::NODE_DESCRIPTION => "EQ Box",
+            *pw::keys::NODE_DESCRIPTION => "TAW Equaliser",
             *pw::keys::NODE_VIRTUAL => "true",
             *pw::keys::NODE_LINK_GROUP => group.as_str(),
             "audio.position" => "FL,FR",
         },
     )
-    .map_err(pw_err("Couldn't create the EQ Box sink"))?;
+    .map_err(pw_err("Couldn't create the TAW Equaliser sink"))?;
 
     let mut playback_props = properties! {
         *pw::keys::MEDIA_TYPE => "Audio",
         *pw::keys::MEDIA_CATEGORY => "Playback",
         *pw::keys::MEDIA_ROLE => "DSP",
-        *pw::keys::NODE_NAME => "eq_box.output",
-        *pw::keys::NODE_DESCRIPTION => "EQ Box output",
+        *pw::keys::NODE_NAME => "taw_equaliser.output",
+        *pw::keys::NODE_DESCRIPTION => "TAW Equaliser output",
         *pw::keys::NODE_PASSIVE => "true",
         *pw::keys::NODE_LINK_GROUP => group.as_str(),
         "audio.position" => "FL,FR",
@@ -179,8 +181,8 @@ fn run(
     if let Some(t) = &target {
         playback_props.insert(*pw::keys::TARGET_OBJECT, t.as_str());
     }
-    let playback = pw::stream::StreamBox::new(&core, "EQ Box output", playback_props)
-        .map_err(pw_err("Couldn't create the EQ Box output"))?;
+    let playback = pw::stream::StreamBox::new(&core, "TAW Equaliser output", playback_props)
+        .map_err(pw_err("Couldn't create the TAW Equaliser output"))?;
 
     // 8192 frames is far more than any graph quantum.
     let (ring_tx, ring_rx) = rtrb::RingBuffer::<f32>::new(8192 * CHANNELS);
@@ -318,11 +320,11 @@ fn run(
     let pod = format_pod();
     let mut params = [Pod::from_bytes(&pod).expect("format pod")];
     sink.connect(spa::utils::Direction::Input, None, flags, &mut params)
-        .map_err(pw_err("Couldn't start the EQ Box sink"))?;
+        .map_err(pw_err("Couldn't start the TAW Equaliser sink"))?;
     let mut params = [Pod::from_bytes(&pod).expect("format pod")];
     playback
         .connect(spa::utils::Direction::Output, None, flags, &mut params)
-        .map_err(pw_err("Couldn't start the EQ Box output"))?;
+        .map_err(pw_err("Couldn't start the TAW Equaliser output"))?;
 
     let _ = ready.send(Ok(()));
     mainloop.run();

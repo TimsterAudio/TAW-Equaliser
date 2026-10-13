@@ -1,5 +1,7 @@
 # Plan: system-wide EQ on Windows (EQ Box APO)
 
+> Since 0.3.0 the app is the TAW Equaliser: the DLL is `taw_equaliser_apo.dll`, files live under `Program Files\Timster's Audio Works\Equaliser` and `ProgramData\Timster's Audio Works\Equaliser`, and the event log source is "TAW Equaliser". This plan keeps the names it was written with.
+
 **Status:** steps 1 and 2 are built, along with the core of step 3: the app mode and live settings. Confirmed working on Windows 11 (build 26200) with a USB DAC: the engine runs inside `audiodg.exe` and the EQ is heard on every app. Note that the audio engine creates APOs through COM aggregation, which `com.rs` supports. Since then: setup runs from the app (Install / Add / Remove) or a double-click, and step 5's mechanism is built: a driver's own endpoint effect is kept and run after the EQ (checked in the harness; waiting on a test with a device that has one). The full installer (step 4) is still to come.
 
 ## Goal

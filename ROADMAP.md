@@ -1,10 +1,10 @@
 # Roadmap
 
-Ideas and planned work for EQ Box. Tick items off (`[x]`) when they ship, and note the version.
+Ideas and planned work for the Equaliser. Tick items off (`[x]`) when they ship, and note the version.
 
 ## In progress
 
-- [x] **System-wide EQ on Windows, with no virtual cable.** EQ Box's own engine plugs into the Windows audio engine as an Audio Processing Object (APO), the same way other EQ software does it. See [docs/WINDOWS_APO_PLAN.md](docs/WINDOWS_APO_PLAN.md). *(0.2.0, as a test build installed from EQ Box. Still to come: a full Windows installer.)*
+- [x] **System-wide EQ on Windows, with no virtual cable.** the Equaliser's own engine plugs into the Windows audio engine as an Audio Processing Object (APO), the same way other EQ software does it. See [docs/WINDOWS_APO_PLAN.md](docs/WINDOWS_APO_PLAN.md). *(0.2.0, as a test build installed from the Equaliser. Still to come: a full Windows installer.)*
 
 ## Planned
 

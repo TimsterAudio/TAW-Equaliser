@@ -1,11 +1,11 @@
 [Desktop Entry]
 Type=Application
-Name=EQ Box
+Name=TAW Equaliser
 GenericName=Parametric Equaliser
 Comment=Ten-band parametric EQ for PipeWire
-Exec=eq-box %f
-Icon=eq-box
+Exec=taw-equaliser %f
+Icon=taw-equaliser
 Terminal=false
 Categories=AudioVideo;Audio;Mixer;
 Keywords=equalizer;equaliser;eq;pipewire;apo;autoeq;
-StartupWMClass=eq-box
+StartupWMClass=taw-equaliser
