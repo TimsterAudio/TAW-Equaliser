@@ -7,6 +7,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
 jobs:
   linux:
@@ -18,6 +19,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libpipewire-0.3-dev libspa-0.2-dev libasound2-dev libclang-dev pkg-config
+      # TAW-Panel is a private repo: cargo fetches it with a read-only token
+      # (repo secret TAW_PANEL_TOKEN). Not needed if TAW-Panel is public.
+      - name: Access TAW-Panel
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.TAW_PANEL_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            git config --global url."https://x-access-token:${TOKEN}@github.com/TimsterAudio/TAW-Panel".insteadOf "https://github.com/TimsterAudio/TAW-Panel"
+          fi
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -42,6 +53,16 @@ jobs:
         asio: [false, true]
     steps:
       - uses: actions/checkout@v4
+      # TAW-Panel is a private repo: cargo fetches it with a read-only token
+      # (repo secret TAW_PANEL_TOKEN). Not needed if TAW-Panel is public.
+      - name: Access TAW-Panel
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.TAW_PANEL_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            git config --global url."https://x-access-token:${TOKEN}@github.com/TimsterAudio/TAW-Panel".insteadOf "https://github.com/TimsterAudio/TAW-Panel"
+          fi
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy

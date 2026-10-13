@@ -26,6 +26,7 @@ egui = "0.36"
 cpal = "0.18"
 rfd = "0.17"
 rustfft = "6.4"
+taw-panel = { git = "https://github.com/TimsterAudio/TAW-Panel", rev = "29de12e21142d9f87ae85b708ed89ea18421621c" } # 0.1.0
 serde = { version = "1", features = ["derive"] }
 rtrb = "0.4"
 

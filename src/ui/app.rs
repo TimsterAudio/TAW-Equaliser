@@ -401,16 +401,7 @@ impl EqApp {
 
     fn fit_to_window(&self, ui: &Ui) {
         // Lay out at the design size and scale the whole panel to fit.
-        let ctx = ui.ctx();
-        let zoom = ctx.zoom_factor();
-        let screen = ctx.content_rect().size() * zoom;
-        let want = (screen.x / DESIGN.x)
-            .min(screen.y / DESIGN.y)
-            .clamp(0.3, 4.0);
-        if (want - zoom).abs() > 0.002 {
-            ctx.set_zoom_factor(want);
-            ctx.request_repaint();
-        }
+        taw_panel::frame::fit_to_window(ui.ctx(), DESIGN, 4.0);
     }
 
     fn update_meters(&mut self, dt: f32) {
@@ -521,26 +512,7 @@ pub(crate) fn set_visuals(ctx: &egui::Context, th: &Theme) {
     }
 }
 
-pub(crate) fn draw_panel_bg(p: &egui::Painter, rect: Rect, th: &Theme) {
-    p.rect_filled(rect, 0, th.panel);
-    if th.silver {
-        // Faint brushed texture.
-        let mut x = rect.left();
-        while x < rect.right() {
-            p.line_segment(
-                [Pos2::new(x, rect.top()), Pos2::new(x, rect.bottom())],
-                Stroke::new(1.0, Color32::from_white_alpha(14)),
-            );
-            x += 3.0;
-        }
-    } else {
-        p.rect_filled(
-            Rect::from_min_size(rect.min, Vec2::new(rect.width(), 2.0)),
-            0,
-            Color32::from_white_alpha(8),
-        );
-    }
-}
+pub(crate) use taw_panel::frame::draw_panel_bg;
 
 impl EqApp {
     fn top_strip(&mut self, ui: &mut Ui, o: Vec2, th: &Theme) {

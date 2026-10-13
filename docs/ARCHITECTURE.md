@@ -4,7 +4,7 @@
             ┌──────────── UI thread (eframe / egui) ────────────┐
             │ ui/app.rs   panel layout, presets, audio control  │
             │ ui/graph.rs response graph + band points          │
-            │ ui/widgets.rs knobs, faders, keys, LED display    │
+            │ taw-panel    knobs, faders, keys, LED display     │
             └──────┬───────────────────────────────▲────────────┘
      Shared::store │ (atomics)                     │ analyser ring (rtrb)
                    ▼                               │ meters (atomics)
@@ -46,7 +46,7 @@ The code is a Cargo workspace:
 | `audio/pipewire_sink.rs` | Two PipeWire streams in one link group: an `Audio/Sink` node called "EQ Box", and a playback stream to the chosen output. They're joined by a ring buffer, the same shape as `pw-loopback`. |
 | `audio/windows_engine.rs` | "Windows (system-wide)": writes the panel to the engine's settings file when it changes, and drives the meters and analyser from WASAPI loopback. It never touches the audio path. |
 | `audio/cpal_backend.rs` | Any cpal host. An input stream and an output stream are joined by a ring buffer with a set latency and drift correction. On WASAPI, `loopback:` inputs capture an output device. |
-| `ui/theme.rs` | Drone Box's colours and fonts, the Black and Silver panels, and the knob styles. |
+| `taw-panel` (shared crate) | The look: Drone Box's colours and fonts, the Black and Silver panels, the knob styles, keys, knobs, faders, displays and meters. It's TimsterAudio/TAW-Panel, pinned by commit in Cargo.toml, and re-exported as `ui::theme` and `ui::widgets`. |
 
 ## Real-time processing
 

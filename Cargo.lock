@@ -797,6 +797,7 @@ dependencies = [
  "rtrb",
  "rustfft",
  "serde",
+ "taw-panel",
 ]
 
 [[package]]
@@ -2676,6 +2677,15 @@ name = "target-lexicon"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
+
+[[package]]
+name = "taw-panel"
+version = "0.1.0"
+source = "git+https://github.com/TimsterAudio/TAW-Panel?rev=29de12e21142d9f87ae85b708ed89ea18421621c#29de12e21142d9f87ae85b708ed89ea18421621c"
+dependencies = [
+ "egui",
+ "serde",
+]
 
 [[package]]
 name = "thiserror"
