@@ -2,6 +2,47 @@
 
 Ideas and planned work for the Equaliser. Tick items off (`[x]`) when they ship, and note the version.
 
+## Pipeline (proposed 2026-10-14)
+
+Carried over from the EQ Box plan on branch `claude/roadmap-pipeline` (2026-10-12), renamed and renumbered after 0.3.0. Sizes: S = one session, M = two or three, L = a release of its own. Briefs from the family session go in `docs/briefs/`; TAW-Panel's `docs/TRACKER.md` tracks the family as a whole.
+
+| Release | What | Size |
+|---|---|---|
+| 0.3.x | **Prove the system-wide engine on Windows**, and fix what turns up | S–M |
+| 0.4.0 | **Easy enough for anyone, part 1:** the setup window, sensible first run, Update and Repair, Copy report | L |
+| 0.5.0 | **Easy enough for anyone, part 2:** the installer, Linux one-click, named starting points | L |
+| later | The EQ inside the Player; band counts | — |
+
+### 0.3.x: prove the engine on Windows
+
+- [ ] Install over an EQ Box engine: it's offered for removal first, every device comes back, then the TAW engine installs
+- [ ] Install and Remove on at least three machines (a laptop with Realtek effects, a USB headset or DAC, a desktop); note what each driver does
+- [ ] The engine survives a reboot and a Windows update; Remove always puts the device back
+- [ ] Settle whether Windows' loopback capture includes the EQ (it decides where the analyser behind the curve gets its feed)
+
+*Exit check:* no machine ends up without sound, and Remove restores every device exactly.
+
+### 0.4.0: easy enough for anyone, part 1
+
+- [ ] **A setup window instead of PowerShell.** A small setup helper (in Rust, doing what the scripts do now) runs with the one Windows permission prompt, and the Equaliser shows its own window: which speakers to work on (connected outputs by their friendly names, the one playing now ticked), a **Play test sound** button by each, plain progress with ticks, then "Done". The same window for Remove and Update.
+- [ ] **Sensible first run.** With the engine installed, the Equaliser starts system-wide, on, with Auto preamp.
+- [ ] **One-click Update and Repair.** Update when the app is newer than the engine; Repair when a Windows update resets a device's effects.
+- [ ] **Fix it for me.** A **Turn on** button when "Audio enhancements" are off for the output.
+- [ ] **Copy report**: what `diagnose-engine.ps1` shows, to paste into a message.
+
+### 0.5.0: easy enough for anyone, part 2
+
+- [ ] **A real installer** instead of a zip, built by the release workflow: Program Files, Start menu, uninstall from Settings › Apps, the speaker page in the same pass.
+- [ ] **Code signing**: a cost decision for the user, not a build task. Until then the download page shows the "More info › Run anyway" step.
+- [ ] **Linux:** a **Make it my output** button, **Start with my computer**, and a single-file download (AppImage or Flatpak).
+- [ ] **Named starting points** in Simple: "More bass", "Clearer speech", "Softer treble".
+
+### Later
+
+- [ ] The EQ inside the Player: `eq-core` runs in the Player for its own playback, with no administrator install; the system-wide engine stays for other apps' sound.
+- [ ] Band counts (EQ-3, EQ-5, EQ-10) in one window that resizes with the count; the engine keeps ten bands with the unused ones off.
+- [ ] Share `eq-core` with Drone Box when Drone Box moves its DSP to Rust.
+
 ## In progress
 
 - [x] **System-wide EQ on Windows, with no virtual cable.** the Equaliser's own engine plugs into the Windows audio engine as an Audio Processing Object (APO), the same way other EQ software does it. See [docs/WINDOWS_APO_PLAN.md](docs/WINDOWS_APO_PLAN.md). *(0.2.0, as a test build installed from the Equaliser. Still to come: a full Windows installer.)*
