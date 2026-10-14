@@ -2,16 +2,29 @@ name: CI
 
 on:
   push:
+    branches: ['**']
+    tags: ['v*']
+    paths-ignore: ['**.md', 'docs/**']
   pull_request:
+    paths-ignore: ['**.md', 'docs/**']
   workflow_dispatch:
+
+# A newer push to the same branch/PR cancels the older run still in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Fast feedback on every branch push. Skipped on pull_request events,
+  # because the push event has already checked the same commit.
   linux:
     name: Linux (PipeWire)
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Install PipeWire and ALSA headers
@@ -22,6 +35,12 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Shared with release.yml, which reads this cache.
+          shared-key: linux
+          # Only the default branch writes caches, so branch caches can't
+          # evict it from the 10 GB repo limit. Branches still read it.
+          save-if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
       - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
@@ -29,17 +48,21 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: taw-equaliser-linux-x86_64
+          retention-days: 7
           path: |
             target/release/taw-equaliser
             packaging/linux/taw-equaliser.desktop
 
+  # Windows runs on PRs, the default branch, release tags and manual runs,
+  # not on every feature-branch push.
   windows:
-    name: Windows (${{ matrix.asio && 'WASAPI + ASIO' || 'WASAPI' }})
+    name: Windows (WASAPI)
+    if: >-
+      github.event_name != 'push' ||
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) ||
+      startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        asio: [false, true]
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -47,26 +70,15 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          key: asio-${{ matrix.asio }}
+          # Shared with release.yml, which reads this cache.
+          shared-key: windows
+          save-if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
       - run: cargo clippy --workspace --all-targets -- -D warnings
-        if: ${{ !matrix.asio }}
       - run: cargo test --workspace
-        if: ${{ !matrix.asio }}
-      # The asio-sys build script downloads Steinberg's ASIO SDK and uses the
-      # runner's preinstalled LLVM for bindgen.
-      - name: Build
-        shell: bash
-        run: |
-          if [ "${{ matrix.asio }}" = "true" ]; then
-            export LIBCLANG_PATH="C:/Program Files/LLVM/bin"
-            cargo build --release --workspace --features taw-equaliser/asio
-          else
-            cargo build --release --workspace
-          fi
+      - run: cargo build --release --workspace
       # Load the system-wide engine DLL through COM on real Windows, run a
       # tone through it and check the EQ (see examples/apo_harness.rs).
       - name: Test the system-wide engine
-        if: ${{ !matrix.asio }}
         shell: bash
         run: |
           cargo build --release -p taw-equaliser-apo --example apo_harness
@@ -74,7 +86,41 @@ jobs:
           cd target/release && ./apo_harness.exe
       - uses: actions/upload-artifact@v4
         with:
-          name: taw-equaliser-windows-x86_64${{ matrix.asio && '-asio' || '' }}
+          name: taw-equaliser-windows-x86_64
+          retention-days: 7
+          path: |
+            target/release/taw-equaliser.exe
+            target/release/taw_equaliser_apo.dll
+            packaging/windows/*.ps1
+
+  # ASIO build: default branch, release tags and manual runs only.
+  windows-asio:
+    name: Windows (WASAPI + ASIO)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) ||
+      startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Shared with release.yml, which reads this cache.
+          shared-key: windows-asio
+          save-if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+      # The asio-sys build script downloads Steinberg's ASIO SDK and uses the
+      # runner's preinstalled LLVM for bindgen.
+      - name: Build
+        shell: bash
+        run: |
+          export LIBCLANG_PATH="C:/Program Files/LLVM/bin"
+          cargo build --release --workspace --features taw-equaliser/asio
+      - uses: actions/upload-artifact@v4
+        with:
+          name: taw-equaliser-windows-x86_64-asio
+          retention-days: 7
           path: |
             target/release/taw-equaliser.exe
             target/release/taw_equaliser_apo.dll

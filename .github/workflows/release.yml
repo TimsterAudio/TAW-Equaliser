@@ -3,23 +3,31 @@
 # CHANGELOG.md, merge to main: the release `vX.Y.Z` appears with the Linux
 # and Windows downloads and that version's changelog as its notes.
 #
-# A release only happens when the version changes, so it runs only on
-# pushes that touch these files. On other branches it builds and packages
-# everything but publishes nothing, so the packaging can be checked first.
+# A release only happens when the version changes, so on main it runs only
+# on pushes that touch these files. Pull requests that change the packaging
+# (this workflow or packaging/) build and package everything but publish
+# nothing, so the packaging can be checked first. A manual run on any branch
+# does the same dry run.
 
 name: Release
 
 on:
   push:
+    branches: [main]
     paths:
       - Cargo.toml
       - CHANGELOG.md
       - .github/workflows/release.yml
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - packaging/**
   workflow_dispatch:
 
+# Never cancel a release on main; a newer dry run replaces an older one.
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -62,6 +70,7 @@ jobs:
     needs: version
     if: needs.version.outputs.exists == 'false' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -69,6 +78,10 @@ jobs:
           sudo apt-get install -y libpipewire-0.3-dev libspa-0.2-dev libasound2-dev libclang-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Reuse the cache CI keeps warm on main; CI is the only writer.
+          shared-key: linux
+          save-if: false
       - run: cargo build --release
       - name: Package
         run: |
@@ -80,12 +93,14 @@ jobs:
         with:
           name: pkg-linux
           path: taw-equaliser-*.tar.gz
+          retention-days: 7
 
   windows:
     name: Package Windows${{ matrix.asio && ' + ASIO' || '' }}
     needs: version
     if: needs.version.outputs.exists == 'false' || github.ref != 'refs/heads/main'
     runs-on: windows-latest
+    timeout-minutes: 45
     strategy:
       matrix:
         asio: [false, true]
@@ -94,7 +109,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: asio-${{ matrix.asio }}
+          # Reuse the cache CI keeps warm on main; CI is the only writer.
+          shared-key: ${{ matrix.asio && 'windows-asio' || 'windows' }}
+          save-if: false
       - name: Build
         shell: bash
         run: |
@@ -119,6 +136,7 @@ jobs:
         with:
           name: pkg-windows${{ matrix.asio && '-asio' || '' }}
           path: taw-equaliser-*.zip
+          retention-days: 7
 
   publish:
     name: Publish release
