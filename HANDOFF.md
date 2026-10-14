@@ -26,3 +26,7 @@ Written 2026-10-14 when the family's work moved from one shared chat to a chat p
 
 1. The user's Windows test of 0.3.0; then merge and release (release.yml publishes on merge to `main`).
 2. Feedback on the new look; screenshots in Spool and Porcelain, light and dark.
+
+## EQ Box lives on separately
+
+On 2026-10-14 EQ Box got its own repository again (TimsterAudio/EQ-Box, restored from 0.2.0) as the Box family's equaliser. It registers the **same Windows engine CLSID** as TAW Equaliser, so only one engine can be installed at a time. This repo's install script already offers to remove an EQ Box engine first; keep that.
