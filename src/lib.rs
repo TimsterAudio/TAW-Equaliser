@@ -5,6 +5,7 @@
 #![allow(clippy::needless_range_loop)]
 
 pub mod audio;
+pub mod family;
 pub mod icon;
 pub mod ui;
 

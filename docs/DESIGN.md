@@ -1,44 +1,32 @@
 # Panel design
 
-The Equaliser uses Drone Box's panel language, so the two look like the same family of hardware. Drone Box's `docs/DESIGN.md` is the reference. This page covers how the Equaliser applies it.
+The Equaliser uses the TAW hi-fi look shared by the Library, Player and Analyser: TAW-Panel's `hifi` module. (Until 0.3.0 it used Drone Box's Jupiter-style panel, which stays with the Box instruments.) The look's colours, type and controls are defined there; this page covers how the Equaliser lays them out.
 
-## Shared with Drone Box
+## The look
 
-- **Panels:** Black `#171717` with cream legends, or Silver `#d5d2ca` with near-black legends and a faint brushed texture. Section frames are drawn in the legend colour at 30% (black panel) or 42% (silver panel).
-- **The stripe** in red, orange, yellow and cream under the top strip.
-- **Type:**
-  - Space Grotesk for the maker wordmark badge
-  - Michroma, slanted −12°, for the logo
-  - Barlow Semi Condensed, uppercase and letter-spaced, for legends and section titles
-  - Share Tech Mono in red with a glow for the displays and readouts
-- **Controls:** knurled black knobs turning through 270°, and faders with black caps and a line across them. Hardware keys are red, orange, yellow, cream or grey, with a red LED above when they hold a state.
-- **Every knob and fader has a permanent red readout** under its label, and the LED display shows the last control touched.
-- **Knob colour shows what a control does:** green (tone) for Freq and Q, amber for the filter Type, blue for the audio buffer, and black for levels (Preamp). The **Knobs** switch chooses between Colour (a tinted top) and Pointer (a black knob with a coloured pointer).
-- **Fit to window:** the panel is laid out at 1640 × 884 and scaled to fit the window, so it never re-wraps.
+- **Finishes:** Anodised (brushed aluminium, white display; the default) and Porcelain (matte white, paper display; Graphite in the dark build). Each has Light, Dark and Automatic (following the computer). The accent is Neutral by default, or the finish's own colour, or one of Spool's colour themes.
+- **Type:** Hanken Grotesk for labels and text, Chivo Mono for numbers and the display, Michroma (slanted 12°) for the logo, Space Grotesk in the maker's badge.
+- **Nameplate,** top left, as on every Timster's Audio Works unit: the badge "Timster's Audio Works - Equaliser", the logo EQUALISER, and the model line "EQ-001 · Ten band parametric equaliser · V…".
+- **No system title bar** by default. The nameplate strip moves the window (double-click maximises); minimise, maximise and close are drawn top right; the edges resize. Settings has "Use the system title bar".
 
-## Equaliser specifics
+## Layout (design units, 1280 × 812, scaled to fit the window)
 
-| Element | Choice |
-|---|---|
-| Band gain | **Fader**, like a level, 0 dB at the bold tick |
-| Band frequency, Q | **Knob**, green (tone family) |
-| Filter type (6 choices) | **Stepped knob**, amber (its own family colour), one tick per type, with the type in a red readout. Clockwise: LPF / LO SH / PEAK / HI SH / HPF / NOTCH. It sits in the knob column above Freq and Q |
-| Auto preamp | **Grey key** with LED, beside the Preamp knob |
-| Band on/off | **Lit key** with no LED: it glows green (RGB 0, 150, 100) when on, and is a dark lens when off. The gain readout sits level with it, with its legend level with "On" |
-| Bypass | **Yellow key** with LED |
-| Run / Stop | **Red key** with LED, like Drone Box's Play / Stop |
-| Load / Save presets | **Cream keys**. Flat and Reset are **grey** (utility) keys |
-| Panel and Knobs switches | **Grey keys** with LEDs, as in Drone Box |
-| Analyser on/off, colour, style | **Tabs on the Response frame's top edge**, at the right (like Drone Box's Window tab). Colour and Style show their setting in display red and step through the choices on each click |
-| Response graph | Drawn as a large red display: dark red background, dim red grid, total response in display red with a glow |
-| Band colours | Ten colours used for the band's point and curve on the graph and the chip on its strip: red, orange, yellow, lime, green, teal, blue, violet, pink and cream |
-| Selected band | Its strip's frame turns orange (the focus colour), and its point gets a cream ring |
-| Audio devices | Lists styled as red displays |
+- **Top, 0–96:** nameplate (left); window buttons (top right); the family switcher (Library, Player, Equaliser, Analyser; apps that aren't installed are dimmed), Simple / Detailed, and the settings gear.
+- **Controls row, about 110–146:**
+  - the **On switch** (starts and stops the audio) with "On" or "Off" and a status line: where it's working, or what's wrong (amber). Clicking the status opens the audio settings.
+  - **Preset:** the preset's name, Load…, Save…, Flat, Reset and **Bypass** (filled with the accent while bypassed; Space toggles it). Simple shows Load… and Flat only.
+  - **Preamp:** a slider, its value and an **Auto** switch (Detailed only).
+  - **In** and **Out** meters, left and right (Detailed only).
+- **Response graph, 162–402 (Simple: 162–372):** the display window. The total response in the display's ink, each active band's curve and fill in its colour, the spectrum faintly behind (optional), and the numbered band points. The selected point has a ring in the ink; hovering or dragging a point shows a tag with its type, frequency, gain and Q.
+- **Detailed: ten band cards, 418 to the footer.** Each card: the band's colour dot and number, an on switch, the filter type menu, a vertical gain fader (0 dB tick; the fill runs from 0 dB to the gain in the accent), the gain value, and small Hz and Q knobs. High-pass, low-pass and notch have no gain, so their card says "No gain, fixed slope" instead of a fader. The selected band's card is outlined in the accent.
+- **Simple: five tone sliders,** Bass, Low mid, Mid, High mid and Treble (bands 2, 4, 6, 8 and 10 of the same ten, ±12 dB), each with its gain and frequency. Switching back to Detailed shows exactly what they changed.
+- **Footer:** the mouse and key hints (Detailed) on the left; the last change or a message on the right.
 
-## Layout (design units)
+## Settings drawer
 
-- **Top strip, 0–110:** wordmark, logo and model line; the LED display; the APO preset keys; In and Out meters; Preamp; the Panel and Knobs switches; Bypass; Run / Stop.
-- **Stripe** at 110.
-- **Row 2, 136–500:** **Response** (the graph) and **Audio** (system, input, output, buffer, rescan, dropouts, help).
-- **Row 3, 518–848:** ten **Band** strips, each with the full-height gain fader on the left, the Type, Freq and Q knobs in a column on the right (its readout shows `--` for the types without gain), the Freq and Q knobs on the right, and the On key.
-- **Footer:** usage hints, and notices such as preset warnings.
+Opened by the gear, it slides over the right of the window:
+
+- **Audio:** System, Input (or what it is, for the PipeWire sink and the Windows engine), Output, Buffer (two-device systems), Rescan devices, the Windows engine's Install / Update / Add and Remove, Dropouts, and a paragraph on how the chosen system works (or the error, in amber).
+- **Spectrum behind the curve:** show it, its colour (Display ink, or a colour scheme) and style.
+- **Look:** finish, light or dark, accent.
+- **Window:** use the system title bar.

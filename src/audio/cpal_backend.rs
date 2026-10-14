@@ -239,8 +239,8 @@ fn open(
     output.play().map_err(|e| e.to_string())?;
 
     let desc = format!(
-        "{}  {} > {}",
-        req.backend.to_uppercase(),
+        "{} · {} → {}",
+        req.backend,
         device_name(&in_dev),
         device_name(&out_dev)
     );

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+The new TAW look (first working build, for review).
+
+- Anodised finish by default (Light, Neutral accent), with Porcelain as the alternative; each in Light, Dark or Automatic. Chosen in Settings (the gear).
+- New layout: an On switch with where the Equaliser is working, the preset, preamp and meters in one row, the response graph in the display window, and ten band cards (type menu, gain fader, Hz and Q knobs). The badge, logo and model line stay.
+- Simple view: five tone sliders (Bass to Treble) and the preset. Detailed has all ten bands.
+- Audio setup (system, input, output, buffer, the Windows engine) has moved into Settings. Clicking the status under the On switch opens it.
+- The Equaliser draws its own title strip: drag it to move the window, double-click to maximise, and use its own minimise, maximise and close buttons. Settings has "Use the system title bar".
+- The family switcher starts the Library, Player or Analyser when they're installed.
+- The spectrum behind the curve draws in the display's own ink by default; the colour schemes are still in Settings.
+
 ## 0.3.0 – 2026-10-13
 
 EQ Box is now **Timster's Audio Works Equaliser** (EQ-001), one of the family's hi-fi separates with the Library, Player and Analyser.

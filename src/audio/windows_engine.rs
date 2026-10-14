@@ -38,10 +38,10 @@ pub fn start(
             // owns the loopback stream as well as writing the settings.
             let monitor = open_loopback(output.as_deref(), shared.clone(), tap);
             let desc = match &monitor {
-                Ok((_, name)) => format!("WINDOWS ENGINE  {name}"),
+                Ok((_, name)) => format!("Windows engine · {name}"),
                 Err(e) => {
                     eprintln!("loopback meter unavailable: {e}");
-                    "WINDOWS ENGINE  (NO METERS)".to_string()
+                    "Windows engine (no meters)".to_string()
                 }
             };
             let _ = ready_tx.send(desc);

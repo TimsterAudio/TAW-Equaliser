@@ -42,7 +42,7 @@ The code is a Cargo workspace:
 | `audio/pipewire_sink.rs` | Two PipeWire streams in one link group: an `Audio/Sink` node called "TAW Equaliser", and a playback stream to the chosen output. They're joined by a ring buffer, the same shape as `pw-loopback`. |
 | `audio/windows_engine.rs` | "Windows (system-wide)": writes the panel to the engine's settings file when it changes, and drives the meters and analyser from WASAPI loopback. It never touches the audio path. |
 | `audio/cpal_backend.rs` | Any cpal host. An input stream and an output stream are joined by a ring buffer with a set latency and drift correction. On WASAPI, `loopback:` inputs capture an output device. |
-| `taw-panel` (shared crate) | The spectrum drawing (`spectrum`) and the analyser's FFT and ballistics (`analyzer`), and the look: Drone Box's colours and fonts, the Black and Silver panels, the knob styles, keys, knobs, faders, displays and meters. It's TimsterAudio/TAW-Panel, pinned by commit in Cargo.toml, and re-exported as `ui::theme` and `ui::widgets`. |
+| `taw-panel` (shared crate) | The spectrum drawing (`spectrum`) and the analyser's FFT and ballistics (`analyzer`), and the look (`hifi`: finishes, fonts, the nameplate, window buttons and controls). It's TimsterAudio/TAW-Panel, pinned by commit in Cargo.toml; `ui::theme`, `ui::widgets` and `ui::spectrum` re-export its older modules. |
 
 ## Real-time processing
 

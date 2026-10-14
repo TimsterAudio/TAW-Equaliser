@@ -66,7 +66,10 @@ pub fn start(
         thread: Some(thread),
     };
     match ready_rx.recv_timeout(Duration::from_secs(5)) {
-        Ok(Ok(())) => Ok(Running::new("PIPEWIRE  TAW EQUALISER".into(), stop)),
+        Ok(Ok(())) => Ok(Running::new(
+            "PipeWire · the TAW Equaliser output".into(),
+            stop,
+        )),
         Ok(Err(e)) => Err(e),
         Err(_) => Err("PipeWire didn't answer. Is it running?".into()),
     }

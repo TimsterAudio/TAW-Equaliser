@@ -1,15 +1,29 @@
-//! The response display: a red-display graph with each band's curve, the
-//! total response, the analyser, and draggable band points.
+//! The response display: the display window with each band's curve, the
+//! total response, the analyser behind them, and draggable band points.
 
 use super::spectrum;
-use super::theme::*;
-use super::widgets::{glow_text, text, wheel};
+use super::widgets::wheel;
 use crate::analyzer::Analyzer;
 use crate::dsp::{
     Coeffs, EqSettings, FREQ_MAX, FREQ_MIN, GAIN_MAX_DB, GAIN_MIN_DB, NUM_BANDS, Q_MAX, Q_MIN,
 };
 use egui::epaint::Mesh;
 use egui::{Align2, Color32, CornerRadius, Id, Pos2, Rect, Sense, Shape, Stroke, Ui, Vec2};
+use taw_panel::hifi::{self, Tokens};
+
+/// The bands' colours on the graph, on their cards and in their tags.
+pub const BAND_COLOURS: [Color32; NUM_BANDS] = [
+    Color32::from_rgb(0xe5, 0x57, 0x4a),
+    Color32::from_rgb(0xec, 0x8a, 0x3a),
+    Color32::from_rgb(0xe8, 0xc5, 0x47),
+    Color32::from_rgb(0xa6, 0xd2, 0x4f),
+    Color32::from_rgb(0x4f, 0xbf, 0x7a),
+    Color32::from_rgb(0x3b, 0xb3, 0xb0),
+    Color32::from_rgb(0x4f, 0x8f, 0xe0),
+    Color32::from_rgb(0x8a, 0x6f, 0xe0),
+    Color32::from_rgb(0xd8, 0x73, 0xb8),
+    Color32::from_rgb(0xb8, 0xb0, 0x9e),
+];
 
 const DB_TOP: f32 = 15.0;
 const DB_BOTTOM: f32 = -27.0;
@@ -73,12 +87,19 @@ pub fn graph(
     selected: &mut usize,
     sample_rate: f32,
     analyzer: Option<&Analyzer>,
-    analyser_style: spectrum::Style,
+    analyser_style: Option<spectrum::Style>,
+    t: &Tokens,
 ) -> GraphResult {
     let mut result = GraphResult { changed: None };
-    let p = ui.painter().with_clip_rect(rect.expand(2.0));
-    p.rect_filled(rect.expand(2.0), CornerRadius::same(4), Color32::BLACK);
-    p.rect_filled(rect, CornerRadius::same(3), LCD_BG);
+    hifi::display(ui.painter(), rect, t);
+    let p = ui.painter().with_clip_rect(rect);
+    let text = |p: &egui::Painter,
+                pos: Pos2,
+                align: Align2,
+                s: &str,
+                f: egui::FontId,
+                c: Color32,
+                _sp: f32| { hifi::label(p, pos, align, s, f, c) };
 
     let plot = Rect::from_min_max(
         rect.min + Vec2::new(40.0, 12.0),
@@ -86,9 +107,9 @@ pub fn graph(
     );
     let ax = Axes { plot };
     let fs = sample_rate.max(8000.0) as f64;
-    let grid = LCD_DIM;
-    let label_col = Color32::from_rgb(0xa8, 0x44, 0x2c);
-    let small = font(F_MONO, 11.0);
+    let grid = t.ink_faint(0.07);
+    let label_col = t.ink_faint(0.6);
+    let small = hifi::num(10.5);
 
     // Grid: decades and their 2s and 5s, dB every 6.
     for &f in &[
@@ -98,11 +119,7 @@ pub fn graph(
     ] {
         let x = ax.x(f);
         let major = [100.0, 1000.0, 10_000.0].contains(&f);
-        let col = if major {
-            grid.gamma_multiply(1.6)
-        } else {
-            grid.gamma_multiply(0.7)
-        };
+        let col = if major { t.ink_faint(0.16) } else { grid };
         p.line_segment(
             [Pos2::new(x, plot.top()), Pos2::new(x, plot.bottom())],
             Stroke::new(1.0, col),
@@ -114,11 +131,11 @@ pub fn graph(
         (100.0, "100"),
         (200.0, "200"),
         (500.0, "500"),
-        (1000.0, "1K"),
-        (2000.0, "2K"),
-        (5000.0, "5K"),
-        (10_000.0, "10K"),
-        (20_000.0, "20K"),
+        (1000.0, "1k"),
+        (2000.0, "2k"),
+        (5000.0, "5k"),
+        (10_000.0, "10k"),
+        (20_000.0, "20k"),
     ] {
         text(
             &p,
@@ -134,9 +151,9 @@ pub fn graph(
     while db <= 12 {
         let y = ax.y(db as f32);
         let col = if db == 0 {
-            Color32::from_rgb(0x8a, 0x2c, 0x18)
+            t.ink_faint(0.32)
         } else {
-            grid
+            t.ink_faint(0.10)
         };
         p.line_segment(
             [Pos2::new(plot.left(), y), Pos2::new(plot.right(), y)],
@@ -158,15 +175,6 @@ pub fn graph(
         );
         db += 6;
     }
-    text(
-        &p,
-        Pos2::new(plot.left() - 7.0, plot.top() - 6.0),
-        Align2::RIGHT_TOP,
-        "DB",
-        small.clone(),
-        label_col,
-        0.3,
-    );
 
     // Analyser, behind everything else.
     if let Some(an) = analyzer.filter(|a| a.active) {
@@ -181,15 +189,19 @@ pub fn graph(
             levels.push(((db - SPEC_BOTTOM) / (SPEC_TOP - SPEC_BOTTOM)).clamp(0.0, 1.0));
             x += 2.0;
         }
-        spectrum::draw(
-            &p,
-            &pts,
-            &levels,
-            plot.left(),
-            plot.right(),
-            plot.bottom(),
-            analyser_style,
-        );
+        match analyser_style {
+            Some(style) => spectrum::draw(
+                &p,
+                &pts,
+                &levels,
+                plot.left(),
+                plot.right(),
+                plot.bottom(),
+                style,
+            ),
+            // In the display's own ink, faint behind the curves.
+            None => hifi::ink_curve(&p, &pts, plot.bottom(), t.ink, 0.10, 1.0),
+        }
         for &(d, l) in &[(-24.0, "-24"), (-48.0, "-48"), (-72.0, "-72")] {
             text(
                 &p,
@@ -259,28 +271,25 @@ pub fn graph(
         })
         .collect();
     let total_col = if s.bypass {
-        LCD_INK.gamma_multiply(0.35)
+        t.ink.gamma_multiply(0.35)
     } else {
-        LCD_INK
+        t.ink
     };
-    p.add(Shape::line(
-        total_pts.clone(),
-        Stroke::new(7.0, total_col.gamma_multiply(0.12)),
-    ));
-    p.add(Shape::line(
-        total_pts.clone(),
-        Stroke::new(4.0, total_col.gamma_multiply(0.25)),
-    ));
-    p.add(Shape::line(total_pts, Stroke::new(2.0, total_col)));
+    if t.glow != Color32::TRANSPARENT {
+        p.add(Shape::line(
+            total_pts.clone(),
+            Stroke::new(6.0, t.glow.gamma_multiply(0.35)),
+        ));
+    }
+    p.add(Shape::line(total_pts, Stroke::new(2.4, total_col)));
     if s.bypass {
-        glow_text(
+        hifi::ink_text(
             &p,
             Pos2::new(plot.right() - 8.0, plot.top() + 6.0),
             Align2::RIGHT_TOP,
             "BYPASSED",
-            font(F_MONO, 14.0),
-            LCD_INK,
-            1.0,
+            hifi::num(13.0),
+            t,
         );
     }
 
@@ -389,11 +398,7 @@ pub fn graph(
         let sel = i == *selected;
         if sel {
             p.circle_filled(c, NODE_R + 6.0, col.gamma_multiply(0.15));
-            p.circle_stroke(
-                c,
-                NODE_R + 3.0,
-                Stroke::new(1.5, Color32::from_rgb(0xf4, 0xf0, 0xe6)),
-            );
+            p.circle_stroke(c, NODE_R + 3.0, Stroke::new(1.8, t.ink));
         }
         if b.enabled {
             p.circle_filled(
@@ -402,26 +407,26 @@ pub fn graph(
                 Color32::from_black_alpha(160),
             );
             p.circle_filled(c, NODE_R, col);
-            p.circle_stroke(c, NODE_R, Stroke::new(1.0, Color32::BLACK));
+            p.circle_stroke(c, NODE_R, Stroke::new(1.0, Color32::from_black_alpha(120)));
             text(
                 &p,
                 c,
                 Align2::CENTER_CENTER,
                 &(i + 1).to_string(),
-                font(F_LEGEND_BOLD, 12.0),
+                hifi::bold(11.0),
                 Color32::from_rgb(0x14, 0x10, 0x0e),
                 0.0,
             );
         } else {
-            p.circle_filled(c, NODE_R, LCD_BG);
-            p.circle_stroke(c, NODE_R, Stroke::new(1.5, col.gamma_multiply(0.5)));
+            p.circle_filled(c, NODE_R, t.display_bg);
+            p.circle_stroke(c, NODE_R, Stroke::new(1.5, col.gamma_multiply(0.6)));
             text(
                 &p,
                 c,
                 Align2::CENTER_CENTER,
                 &(i + 1).to_string(),
-                font(F_LEGEND_BOLD, 12.0),
-                col.gamma_multiply(0.6),
+                hifi::bold(11.0),
+                col,
                 0.0,
             );
         }
@@ -435,47 +440,69 @@ pub fn graph(
     if let Some(i) = tag_band {
         let b = &s.bands[i];
         let gain = if b.kind.has_gain() {
-            format!("  {:+.1}DB", b.gain_db)
+            format!(" · {:+.1} dB", b.gain_db)
         } else {
             String::new()
         };
         let label = format!(
-            "{} {}  {}HZ{}  Q {:.2}{}",
+            "{} {} · {} Hz{} · Q {:.2}{}",
             i + 1,
-            b.kind.short(),
-            fmt_freq(b.freq),
+            kind_name(b.kind),
+            fmt_freq(b.freq).replace('K', "k"),
             gain,
             b.q,
-            if b.enabled { "" } else { "  OFF" }
+            if b.enabled { "" } else { " · off" }
         );
-        let f = font(F_MONO, 12.5);
-        let w = p.layout_no_wrap(label.clone(), f.clone(), LCD_INK).size().x + 14.0;
+        let f = hifi::ui_font(12.5);
+        let w = p.layout_no_wrap(label.clone(), f.clone(), t.text).size().x + 18.0;
         let c = ax.node(b);
-        let mut r = Rect::from_min_size(Pos2::new(c.x + 14.0, c.y - 30.0), Vec2::new(w, 20.0));
+        let mut r = Rect::from_min_size(Pos2::new(c.x + 14.0, c.y - 32.0), Vec2::new(w, 24.0));
         if r.right() > plot.right() {
             r = r.translate(Vec2::new(-(w + 28.0), 0.0));
         }
         if r.top() < plot.top() {
             r = r.translate(Vec2::new(0.0, 44.0));
         }
-        p.rect_filled(r.expand(1.0), CornerRadius::same(2), BAND_COLOURS[i]);
         p.rect_filled(
-            r,
-            CornerRadius::same(2),
-            Color32::from_rgb(0x08, 0x02, 0x02),
+            r.translate(Vec2::new(0.0, 1.5)),
+            CornerRadius::same(6),
+            Color32::from_black_alpha(60),
         );
-        glow_text(
+        p.rect_filled(r, CornerRadius::same(6), t.raised);
+        p.rect_filled(
+            Rect::from_min_size(r.min, Vec2::new(4.0, r.height())),
+            CornerRadius {
+                nw: 6,
+                sw: 6,
+                ne: 0,
+                se: 0,
+            },
+            BAND_COLOURS[i],
+        );
+        hifi::label(
             &p,
-            r.center(),
+            r.center() + Vec2::new(2.0, 0.0),
             Align2::CENTER_CENTER,
             &label,
             f,
-            LCD_INK,
-            0.4,
+            t.text,
         );
     }
 
     result
+}
+
+/// The filter type in words, for tags and menus.
+pub fn kind_name(k: crate::dsp::FilterKind) -> &'static str {
+    use crate::dsp::FilterKind::*;
+    match k {
+        Peak => "Peak",
+        LowShelf => "Low shelf",
+        HighShelf => "High shelf",
+        HighPass => "High-pass",
+        LowPass => "Low-pass",
+        Notch => "Notch",
+    }
 }
 
 /// The band point under `pos`; the selected band wins ties so stacked

@@ -1,6 +1,6 @@
 # TAW Equaliser: working conventions
 
-The Equaliser (EQ-001, formerly EQ Box) is a native ten-band parametric EQ by Timster's Audio Works, written in Rust with egui (via eframe) for the panel. Read `docs/ARCHITECTURE.md` before you change code, and `docs/DESIGN.md` before you change the panel. The panel follows Drone Box's design language; its theme, keys, knobs, faders and displays come from the shared `taw-panel` crate (TimsterAudio/TAW-Panel), pinned by commit in Cargo.toml. Change the shared look there, then move the pin. TAW-Panel's `FAMILY.md` covers how it fits with the Library, Player and Analyser.
+The Equaliser (EQ-001, formerly EQ Box) is a native ten-band parametric EQ by Timster's Audio Works, written in Rust with egui (via eframe) for the panel. Read `docs/ARCHITECTURE.md` before you change code, and `docs/DESIGN.md` before you change the panel. The panel is the TAW hi-fi look; its finishes, nameplate, window buttons and controls come from the shared `taw-panel` crate's `hifi` module (TimsterAudio/TAW-Panel), pinned by commit in Cargo.toml. The window has no system title bar unless the user turns it on in Settings. Change the shared look there, then move the pin. TAW-Panel's `FAMILY.md` covers how it fits with the Library, Player and Analyser.
 
 ## Hard rules
 

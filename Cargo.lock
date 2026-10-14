@@ -2665,6 +2665,7 @@ dependencies = [
  "rfd",
  "rtrb",
  "serde",
+ "serde_json",
  "taw-panel",
 ]
 
@@ -2680,7 +2681,7 @@ dependencies = [
 [[package]]
 name = "taw-panel"
 version = "0.2.0"
-source = "git+https://github.com/TimsterAudio/TAW-Panel?rev=41a95d4513d93dfbf18803508065a8c0a168ec95#41a95d4513d93dfbf18803508065a8c0a168ec95"
+source = "git+https://github.com/TimsterAudio/TAW-Panel?rev=f399c1d0519c84a2119d498b1ff6821cafee1993#f399c1d0519c84a2119d498b1ff6821cafee1993"
 dependencies = [
  "egui",
  "rtrb",

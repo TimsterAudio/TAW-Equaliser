@@ -1,6 +1,6 @@
 # TAW Equaliser
 
-**Timster's Audio Works – Equaliser (EQ-001) v0.3.0**: a native ten-band parametric equaliser for Windows and Linux. One of the family's hi-fi separates, with the Library, Player and Analyser, all on the same Jupiter-style panel. It was called EQ Box until 0.3.0.
+**Timster's Audio Works – Equaliser (EQ-001) v0.3.0**: a native ten-band parametric equaliser for Windows and Linux. One of the family's hi-fi separates, with the Library, Player and Analyser, in their shared TAW look (Anodised or Porcelain, light or dark). It was called EQ Box until 0.3.0.
 
 ![The Equaliser with an AutoEQ preset loaded and pink noise playing](docs/screenshot.png)
 
@@ -23,7 +23,7 @@ Get the latest version from the [Releases page](https://github.com/TimsterAudio/
   - **Windows:** a **system-wide engine** (test build) that runs inside Windows' own audio engine and equalises every app with no virtual cable, plus **WASAPI** and **ASIO** (an optional build feature).
   - **Linux:** a **native PipeWire sink**. The Equaliser shows up as an output called "TAW Equaliser", so any app can play into it. It also has PipeWire and ALSA device modes.
 - **The spectrum analyser on its own** is now a separate download: the [TAW Analyser](https://github.com/TimsterAudio/TAW-Analyser) (formerly SP-10).
-- **Remembers everything:** bands, preset name, devices, panel and knob style, and whether audio was running.
+- **Remembers everything:** bands, preset name, devices, look, Simple or Detailed, and whether audio was running.
 
 ## Using it
 

@@ -1,24 +1,37 @@
-//! The Equaliser panel.
+//! The Equaliser panel, in the TAW hi-fi look (TAW-Panel's `hifi`): the
+//! nameplate, family switcher and window buttons along the top; the On
+//! switch, preset, preamp and meters; the response graph in the display
+//! window; and the ten band cards (Detailed) or five tone sliders (Simple).
+//! Audio setup lives in the settings drawer.
 
-use super::graph::{self, fmt_freq};
+use super::graph::{self, fmt_freq, kind_name, BAND_COLOURS};
 use super::spectrum::{self, Look, Scheme};
-use super::theme::*;
-use super::widgets::*;
+use super::theme::{KnobStyle, PanelKind};
+use super::widgets::Spec;
 use crate::analyzer::Analyzer;
 use crate::audio::engine_setup::{self, EngineState, Setup};
 use crate::audio::{self, BackendInfo, DeviceLists, Running, StartRequest};
 use crate::dsp::*;
+use crate::family::{self, App};
 use crate::shared::{analyzer_channel, Shared};
-use egui::text::{LayoutJob, TextFormat};
-use egui::{Align2, Color32, CornerRadius, Id, Key, Pos2, Rect, Stroke, StrokeKind, Ui, Vec2};
+use egui::{Align2, Id, Key, Pos2, Rect, Stroke, Ui, Vec2, ViewportCommand};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
+use taw_panel::hifi::{self, Seg, Tokens};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The panel is laid out at this size and scaled to fit the window.
-pub const DESIGN: Vec2 = Vec2::new(1640.0, 884.0);
+pub const DESIGN: Vec2 = Vec2::new(1280.0, 812.0);
 const STORAGE_KEY: &str = "taw-equaliser";
+/// Simple view's tone sliders, and the band each one moves.
+const TONE: [(&str, usize); 5] = [
+    ("Bass", 1),
+    ("Low mid", 3),
+    ("Mid", 5),
+    ("High mid", 7),
+    ("Treble", 9),
+];
 
 /// Everything remembered between runs.
 #[derive(Clone, Serialize, Deserialize)]
@@ -34,7 +47,10 @@ struct Saved {
     input: Option<String>,
     output: Option<String>,
     latency_ms: f32,
+    /// The Jupiter panel before 0.3.0. Kept so older settings still load.
+    #[allow(dead_code)]
     panel: PanelKind,
+    #[allow(dead_code)]
     knobs: KnobStyle,
     analyser: bool,
     analyser_scheme: Scheme,
@@ -42,6 +58,17 @@ struct Saved {
     running: bool,
     selected: usize,
     last_dir: Option<PathBuf>,
+    /// Finish, light or dark, and accent.
+    look: hifi::Look,
+    /// Simple view: five tone sliders instead of the ten bands.
+    simple: bool,
+    /// Use the system's title bar instead of the Equaliser's own.
+    system_title_bar: bool,
+    /// The spectrum behind the curve in the display's own ink, rather than
+    /// a colour scheme.
+    analyser_ink: bool,
+    /// Where the user pointed the Equaliser to family apps it couldn't find.
+    family: std::collections::HashMap<String, PathBuf>,
 }
 
 impl Default for Saved {
@@ -64,6 +91,11 @@ impl Default for Saved {
             running: false,
             selected: 5,
             last_dir: None,
+            look: hifi::Look::default(),
+            simple: false,
+            system_title_bar: false,
+            analyser_ink: true,
+            family: Default::default(),
         }
     }
 }
@@ -75,14 +107,13 @@ const GAIN: Spec = Spec {
     log: false,
     step: 0.1,
 };
-/// The filter type knob: one step per type, clockwise in `FilterKind::ALL`
-/// order.
-const TYPE: Spec = Spec {
-    min: 0.0,
-    max: (FilterKind::ALL.len() - 1) as f32,
-    default: 2.0, // peak
+/// Simple view's tone sliders: ±12 dB.
+const TONE_GAIN: Spec = Spec {
+    min: -12.0,
+    max: 12.0,
+    default: 0.0,
     log: false,
-    step: 1.0,
+    step: 0.1,
 };
 const PREAMP: Spec = Spec {
     min: PREAMP_MIN_DB,
@@ -132,6 +163,11 @@ fn fmt_hz(v: f32) -> String {
     }
 }
 
+/// A frequency short enough for a knob: "105", "3.2k".
+fn short_hz(v: f32) -> String {
+    fmt_freq(v).replace('K', "k")
+}
+
 pub struct EqApp {
     s: Saved,
     shared: Arc<Shared>,
@@ -150,11 +186,13 @@ pub struct EqApp {
     engine_checked: f64,
     /// A setup script waiting on Windows' permission prompt.
     setup: Option<std::process::Child>,
+    settings_open: bool,
+    installed: [bool; 4],
 }
 
 impl EqApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        install_fonts(&cc.egui_ctx);
+        hifi::install_fonts(&cc.egui_ctx);
         let mut s: Saved = cc
             .storage
             .and_then(|st| eframe::get_value(st, STORAGE_KEY))
@@ -174,6 +212,10 @@ impl EqApp {
         {
             s.backend = backends.first().map(|b| b.id.clone());
         }
+        if s.system_title_bar {
+            cc.egui_ctx
+                .send_viewport_cmd(ViewportCommand::Decorations(true));
+        }
         let mut app = EqApp {
             shared: Arc::new(Shared::new(&settings)),
             s,
@@ -189,7 +231,10 @@ impl EqApp {
             engine: EngineState::NotInstalled,
             engine_checked: f64::NEG_INFINITY,
             setup: None,
+            settings_open: false,
+            installed: [false, false, true, false],
         };
+        app.refresh_family();
         app.refresh_devices();
         if let Some(path) = std::env::args_os().nth(1) {
             app.load_preset_file(std::path::Path::new(&path));
@@ -198,6 +243,15 @@ impl EqApp {
             app.start_audio();
         }
         app
+    }
+
+    fn refresh_family(&mut self) {
+        for (i, a) in App::ALL.into_iter().enumerate() {
+            if a != App::Equaliser {
+                self.installed[i] =
+                    family::find(a.program(), self.s.family.get(a.name())).is_some();
+            }
+        }
     }
 
     fn settings(&self) -> EqSettings {
@@ -399,11 +453,6 @@ impl EqApp {
 
     // ------------------------------------------------------------ frame
 
-    fn fit_to_window(&self, ui: &Ui) {
-        // Lay out at the design size and scale the whole panel to fit.
-        taw_panel::frame::fit_to_window(ui.ctx(), DESIGN, 4.0);
-    }
-
     fn update_meters(&mut self, dt: f32) {
         let peaks = self.shared.take_peaks();
         for (shown, p) in self.peaks_db.iter_mut().zip(peaks) {
@@ -414,6 +463,881 @@ impl EqApp {
                 (*shown - 30.0 * dt).max(db).max(-90.0)
             };
         }
+    }
+
+    fn flat(&mut self) {
+        for b in &mut self.s.bands {
+            b.gain_db = 0.0;
+        }
+        self.s.preamp_db = 0.0;
+        self.touch("All gains", "0.0 dB");
+    }
+
+    fn reset(&mut self) {
+        self.s.bands = default_bands();
+        self.s.preamp_db = 0.0;
+        self.s.preset_name = "Flat".into();
+        self.touch("Reset", "default bands");
+    }
+
+    fn toggle_run(&mut self) {
+        if self.running.is_some() {
+            self.stop_audio();
+        } else {
+            self.start_audio();
+        }
+    }
+
+    /// What the status line under the On switch says, and whether it's a
+    /// problem.
+    fn status(&self) -> (String, bool) {
+        let rate = self
+            .shared
+            .sample_rate
+            .load(std::sync::atomic::Ordering::Relaxed);
+        match (&self.running, &self.audio_error) {
+            (Some(_), _) if self.is_win_engine() => match self.engine {
+                EngineState::NotInstalled => ("Engine not installed (see Settings)".into(), true),
+                EngineState::Idle => ("Whole computer · engine idle".into(), false),
+                EngineState::Active => ("Whole computer · all apps".into(), false),
+                EngineState::Outdated => ("Engine needs updating (see Settings)".into(), true),
+            },
+            (Some(r), _) => {
+                let d = r
+                    .description
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if rate > 0 && !self.s.simple {
+                    (format!("{d} · {:.1} kHz", rate as f32 / 1000.0), false)
+                } else {
+                    (d, false)
+                }
+            }
+            (None, Some(e)) => (e.clone(), true),
+            (None, None) => ("Audio isn't going through the Equaliser".into(), false),
+        }
+    }
+
+    // ------------------------------------------------------------ top
+
+    fn plate(&mut self, ui: &mut Ui, screen: Rect, o: Vec2, t: &Tokens) {
+        let plate = Rect::from_min_size(screen.min, Vec2::new(screen.width(), 96.0 + o.y));
+        if !self.s.system_title_bar {
+            hifi::drag_to_move(ui, plate);
+        }
+        hifi::nameplate(
+            ui,
+            Pos2::new(24.0, 14.0) + o,
+            t,
+            "Equaliser",
+            &format!("EQ-001 · Ten band parametric equaliser · V{VERSION}"),
+        );
+        if !self.s.system_title_bar {
+            hifi::window_buttons(ui, Pos2::new(screen.right() - 10.0, screen.top() + 10.0), t);
+        }
+        let right = o.x + DESIGN.x - 24.0;
+        let row = o.y + 66.0;
+        let gear = Rect::from_min_size(Pos2::new(right - 30.0, row - 15.0), Vec2::splat(30.0));
+        if hifi::gear_button(ui, gear, Id::new("settings"), t, self.settings_open).clicked() {
+            self.settings_open = !self.settings_open;
+        }
+        let (seg, picked) = hifi::segmented(
+            ui,
+            Pos2::new(gear.left() - 12.0, row),
+            true,
+            Id::new("simple"),
+            t,
+            &["Simple", "Detailed"],
+            if self.s.simple { 0 } else { 1 },
+            Seg::Plain,
+            &[],
+            &[],
+        );
+        if let Some(i) = picked {
+            self.s.simple = i == 0;
+        }
+        let (_, picked) =
+            hifi::family_switch(ui, Pos2::new(seg.left() - 14.0, row), t, 2, self.installed);
+        if let Some(i) = picked {
+            let a = App::ALL[i];
+            match family::find(a.program(), self.s.family.get(a.name())) {
+                Some(exe) => match family::launch(&exe) {
+                    Ok(()) => self.notify(format!("Starting the {}…", a.name())),
+                    Err(e) => self.notify(format!("The {} wouldn't start: {e}", a.name())),
+                },
+                None => self.notify(format!(
+                    "The {} isn't installed here (looked next to the Equaliser and on the PATH).",
+                    a.name()
+                )),
+            }
+            self.refresh_family();
+        }
+    }
+
+    /// The On switch and status, the preset, the preamp and the meters.
+    fn controls_row(&mut self, ui: &mut Ui, o: Vec2, t: &Tokens) {
+        let y = o.y + 128.0;
+        let x0 = o.x + 24.0;
+        let lab = |ui: &Ui, x: f32, s: &str| {
+            hifi::label(
+                ui.painter(),
+                Pos2::new(x, y),
+                Align2::LEFT_CENTER,
+                s,
+                hifi::ui_font(12.0),
+                t.dim,
+            )
+        };
+        let sep = |ui: &Ui, x: f32| {
+            ui.painter().line_segment(
+                [Pos2::new(x, y - 18.0), Pos2::new(x, y + 18.0)],
+                Stroke::new(1.0, t.line),
+            );
+        };
+
+        // On / off (runs the audio) and where it's working.
+        let on = self.running.is_some();
+        let sw = Rect::from_min_size(Pos2::new(x0, y - 15.0), Vec2::new(52.0, 30.0));
+        if hifi::switch(ui, sw, Id::new("run"), t, on)
+            .on_hover_text("Start or stop the Equaliser")
+            .clicked()
+        {
+            self.toggle_run();
+        }
+        let (status, problem) = self.status();
+        let p = ui.painter();
+        hifi::label(
+            p,
+            Pos2::new(sw.right() + 12.0, y - 9.0),
+            Align2::LEFT_CENTER,
+            if on { "On" } else { "Off" },
+            hifi::bold(15.0),
+            t.text,
+        );
+        let light = if problem {
+            t.warn
+        } else if on {
+            t.ok
+        } else {
+            t.dim.gamma_multiply(0.6)
+        };
+        hifi::status_light(p, Pos2::new(sw.right() + 17.0, y + 9.0), light);
+        let status_w = if self.s.simple { 420.0 } else { 200.0 };
+        let sr = hifi::label_fit(
+            p,
+            Pos2::new(sw.right() + 26.0, y + 9.0),
+            Align2::LEFT_CENTER,
+            &status,
+            hifi::ui_font(12.0),
+            if problem { t.warn } else { t.dim },
+            status_w,
+        );
+        // Clicking the status opens the audio settings.
+        let hit = Rect::from_min_max(
+            Pos2::new(sw.right() + 8.0, y - 18.0),
+            Pos2::new(sr.right().max(sw.right() + 60.0), y + 18.0),
+        );
+        if ui
+            .interact(hit, Id::new("status"), egui::Sense::click())
+            .on_hover_text("Audio settings")
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .clicked()
+        {
+            self.settings_open = true;
+        }
+        let mut x = sw.right() + 26.0 + status_w + 14.0;
+        sep(ui, x);
+        x += 14.0;
+
+        // Preset: its name, load and save, flat and reset.
+        x = lab(ui, x, "Preset").right() + 10.0;
+        let name_r = Rect::from_min_size(
+            Pos2::new(x, y - 13.0),
+            Vec2::new(if self.s.simple { 200.0 } else { 130.0 }, 26.0),
+        );
+        hifi::well(ui.painter(), name_r, t);
+        hifi::label_fit(
+            ui.painter(),
+            Pos2::new(name_r.left() + 10.0, y),
+            Align2::LEFT_CENTER,
+            &self.s.preset_name,
+            hifi::ui_font(12.5),
+            t.text,
+            name_r.width() - 20.0,
+        );
+        x = name_r.right() + 6.0;
+        let buttons: &[(&str, u8)] = if self.s.simple {
+            &[("Load…", 0), ("Flat", 2)]
+        } else {
+            &[
+                ("Load…", 0),
+                ("Save…", 1),
+                ("Flat", 2),
+                ("Reset", 3),
+                ("Bypass", 4),
+            ]
+        };
+        for (label, what) in buttons {
+            let w = hifi::button_width(ui, label);
+            let r = Rect::from_min_size(Pos2::new(x, y - 13.0), Vec2::new(w, 26.0));
+            let primary = *what == 4 && self.s.bypass;
+            if hifi::button(ui, r, Id::new(("preset", *what)), t, label, primary).clicked() {
+                match what {
+                    0 => self.load_preset(),
+                    1 => self.save_preset(),
+                    2 => self.flat(),
+                    3 => self.reset(),
+                    _ => {
+                        self.s.bypass = !self.s.bypass;
+                        self.touch("Bypass", if self.s.bypass { "on" } else { "off" });
+                    }
+                }
+            }
+            x = r.right() + 6.0;
+        }
+        if self.s.simple {
+            return;
+        }
+        x += 8.0;
+        sep(ui, x);
+        x += 14.0;
+
+        // Preamp, and Auto, which keeps the response's peak at 0 dB.
+        if self.s.auto_preamp {
+            self.s.preamp_db = auto_preamp_db(&self.s.bands, 48_000.0);
+        }
+        x = lab(ui, x, "Preamp").right() + 10.0;
+        let mut pre = self.s.preamp_db;
+        let sr = Rect::from_min_size(Pos2::new(x + 8.0, y - 8.0), Vec2::new(70.0, 16.0));
+        if hifi::hslider(ui, sr, Id::new("preamp"), t, &mut pre, &PREAMP).changed() {
+            // Moving the slider takes over from Auto.
+            self.s.auto_preamp = false;
+            self.s.preamp_db = pre;
+            self.touch("Preamp", fmt_db(pre));
+        }
+        let vr = hifi::label(
+            ui.painter(),
+            Pos2::new(sr.right() + 14.0, y),
+            Align2::LEFT_CENTER,
+            &fmt_db(self.s.preamp_db),
+            hifi::num(12.0),
+            t.text,
+        );
+        let mut auto = self.s.auto_preamp;
+        hifi::labelled_switch(
+            ui,
+            Pos2::new(vr.left() + 66.0, y - 9.0),
+            Id::new("auto-preamp"),
+            t,
+            &mut auto,
+            "Auto",
+        );
+        if auto != self.s.auto_preamp {
+            self.s.auto_preamp = auto;
+            if auto {
+                self.s.preamp_db = auto_preamp_db(&self.s.bands, 48_000.0);
+            }
+            self.touch(
+                "Auto preamp",
+                if auto {
+                    fmt_db(self.s.preamp_db)
+                } else {
+                    "off".into()
+                },
+            );
+        }
+
+        // In and Out meters, left and right.
+        let right = o.x + DESIGN.x - 24.0;
+        let mw = 70.0;
+        let p = ui.painter();
+        for (k, name) in ["In", "Out"].iter().enumerate() {
+            let top = y - 15.0 + k as f32 * 17.0;
+            hifi::label(
+                p,
+                Pos2::new(right - mw - 8.0, top + 6.0),
+                Align2::RIGHT_CENTER,
+                name,
+                hifi::ui_font(11.0),
+                t.dim,
+            );
+            for side in 0..2 {
+                let r = Rect::from_min_size(
+                    Pos2::new(right - mw, top + side as f32 * 7.0),
+                    Vec2::new(mw, 5.0),
+                );
+                hifi::meter(p, r, t, self.peaks_db[k * 2 + side]);
+            }
+        }
+    }
+
+    fn graph_area(&mut self, ui: &mut Ui, rect: Rect, t: &Tokens) {
+        let rate = match self
+            .shared
+            .sample_rate
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            0 => 48_000.0,
+            r => r as f32,
+        };
+        let mut s = self.settings();
+        let style = (!self.s.analyser_ink).then_some(spectrum::Style {
+            scheme: self.s.analyser_scheme,
+            fill: self.s.analyser_fill,
+            strength: 0.4,
+        });
+        let res = graph::graph(
+            ui,
+            rect,
+            &mut s,
+            &mut self.s.selected,
+            rate,
+            self.s.analyser.then_some(&self.analyzer),
+            style,
+            t,
+        );
+        if let Some(i) = res.changed {
+            let b = s.bands[i];
+            self.touch(
+                format!("Band {} {}", i + 1, kind_name(b.kind)),
+                if b.enabled {
+                    format!("{} {:+.1} dB", fmt_hz(b.freq), b.gain_db)
+                } else {
+                    "off".into()
+                },
+            );
+        }
+        self.s.bands = s.bands;
+    }
+
+    // ------------------------------------------------------------ bands
+
+    fn bands(&mut self, ui: &mut Ui, area: Rect, t: &Tokens) {
+        let gap = 8.0;
+        let w = (area.width() - gap * (NUM_BANDS - 1) as f32) / NUM_BANDS as f32;
+        for i in 0..NUM_BANDS {
+            let r = Rect::from_min_size(
+                Pos2::new(area.left() + i as f32 * (w + gap), area.top()),
+                Vec2::new(w, area.height()),
+            );
+            self.band_card(ui, i, r, t);
+        }
+    }
+
+    fn band_card(&mut self, ui: &mut Ui, i: usize, r: Rect, t: &Tokens) {
+        let sel = self.s.selected == i;
+        let mut b = self.s.bands[i];
+        let before = b;
+        let mut touched: Option<(&str, String)> = None;
+        let mut interacted = false;
+        {
+            let p = ui.painter();
+            hifi::well(p, r, t);
+            if sel {
+                p.rect_stroke(
+                    r,
+                    egui::CornerRadius::same(8),
+                    Stroke::new(2.0, t.accent),
+                    egui::StrokeKind::Inside,
+                );
+            }
+            p.circle_filled(
+                Pos2::new(r.left() + 16.0, r.top() + 18.0),
+                5.0,
+                BAND_COLOURS[i],
+            );
+            hifi::label(
+                p,
+                Pos2::new(r.left() + 27.0, r.top() + 18.0),
+                Align2::LEFT_CENTER,
+                &(i + 1).to_string(),
+                hifi::bold(13.0),
+                if b.enabled { t.text } else { t.dim },
+            );
+        }
+        // On / off
+        let sw = Rect::from_min_size(
+            Pos2::new(r.right() - 40.0, r.top() + 10.0),
+            Vec2::new(30.0, 17.0),
+        );
+        if hifi::switch(ui, sw, Id::new(("on", i)), t, b.enabled).clicked() {
+            b.enabled = !b.enabled;
+            touched = Some(("", if b.enabled { "on".into() } else { "off".into() }));
+            interacted = true;
+        }
+
+        // Filter type
+        let tr = Rect::from_min_size(
+            Pos2::new(r.left() + 8.0, r.top() + 36.0),
+            Vec2::new(r.width() - 16.0, 26.0),
+        );
+        let names: Vec<String> = FilterKind::ALL
+            .iter()
+            .map(|k| kind_name(*k).to_string())
+            .collect();
+        let cur = FilterKind::ALL
+            .iter()
+            .position(|k| *k == b.kind)
+            .unwrap_or(0);
+        if let Some(k) = hifi::select(ui, tr, &format!("type-{i}"), t, &names, cur) {
+            b.kind = FilterKind::ALL[k];
+            touched = Some(("Type", kind_name(b.kind).to_string()));
+            interacted = true;
+        }
+
+        // Gain fader, or a note for the types without gain.
+        let fr = Rect::from_min_size(
+            Pos2::new(r.center().x - 14.0, r.top() + 82.0),
+            Vec2::new(28.0, 150.0),
+        );
+        if b.kind.has_gain() {
+            let resp = hifi::vfader(ui, fr, Id::new(("gain", i)), t, &mut b.gain_db, &GAIN, 0.0);
+            interacted |= resp.is_pointer_button_down_on();
+            if resp.changed() {
+                touched = Some(("Gain", fmt_db(b.gain_db)));
+            }
+        } else {
+            let p = ui.painter();
+            hifi::label(
+                p,
+                fr.center() - Vec2::new(0.0, 9.0),
+                Align2::CENTER_CENTER,
+                "No gain",
+                hifi::ui_font(11.5),
+                t.dim,
+            );
+            hifi::label(
+                p,
+                fr.center() + Vec2::new(0.0, 9.0),
+                Align2::CENTER_CENTER,
+                "fixed slope",
+                hifi::ui_font(11.5),
+                t.dim,
+            );
+        }
+        hifi::label(
+            ui.painter(),
+            Pos2::new(r.center().x, fr.bottom() + 16.0),
+            Align2::CENTER_CENTER,
+            &if b.kind.has_gain() {
+                fmt_db(b.gain_db)
+            } else {
+                "—".into()
+            },
+            hifi::num(12.0),
+            t.text,
+        );
+
+        // Frequency and Q
+        let ky = fr.bottom() + 54.0;
+        let (f_s, q_s) = (short_hz(b.freq), format!("{:.2}", b.q));
+        let resp = hifi::knob(
+            ui,
+            Pos2::new(r.center().x - 24.0, ky),
+            Id::new(("freq", i)),
+            t,
+            &mut b.freq,
+            &freq_spec(default_bands()[i].freq),
+            &f_s,
+            "Hz",
+        );
+        interacted |= resp.is_pointer_button_down_on();
+        if resp.changed() {
+            touched = Some(("Freq", fmt_hz(b.freq)));
+        }
+        let resp = hifi::knob(
+            ui,
+            Pos2::new(r.center().x + 24.0, ky),
+            Id::new(("q", i)),
+            t,
+            &mut b.q,
+            &q_spec(b.kind),
+            &q_s,
+            "Q",
+        );
+        interacted |= resp.is_pointer_button_down_on();
+        if resp.changed() {
+            touched = Some(("Q", format!("{:.2}", b.q)));
+        }
+
+        // Clicking anywhere on the card selects its band.
+        if ui
+            .interact(r, Id::new(("card", i)), egui::Sense::click())
+            .clicked()
+        {
+            interacted = true;
+        }
+        if interacted || touched.is_some() {
+            self.s.selected = i;
+        }
+        if b != before {
+            self.s.bands[i] = b;
+        }
+        if let Some((what, val)) = touched {
+            self.touch(format!("Band {} {what}", i + 1).trim().to_string(), val);
+        }
+    }
+
+    /// Simple view: five tone sliders, each moving one band's gain.
+    fn tone(&mut self, ui: &mut Ui, area: Rect, t: &Tokens) {
+        let gap = 18.0;
+        let w = (area.width() - gap * (TONE.len() - 1) as f32) / TONE.len() as f32;
+        for (k, (name, band)) in TONE.iter().enumerate() {
+            let r = Rect::from_min_size(
+                Pos2::new(area.left() + k as f32 * (w + gap), area.top()),
+                Vec2::new(w, area.height()),
+            );
+            hifi::well(ui.painter(), r, t);
+            hifi::label(
+                ui.painter(),
+                Pos2::new(r.center().x, r.top() + 22.0),
+                Align2::CENTER_CENTER,
+                name,
+                hifi::bold(15.0),
+                t.text,
+            );
+            let fr = Rect::from_min_size(
+                Pos2::new(r.center().x - 18.0, r.top() + 48.0),
+                Vec2::new(36.0, r.height() - 120.0),
+            );
+            let mut b = self.s.bands[*band];
+            let mut g = b.gain_db.clamp(TONE_GAIN.min, TONE_GAIN.max);
+            if hifi::vfader(ui, fr, Id::new(("tone", k)), t, &mut g, &TONE_GAIN, 0.0).changed() {
+                b.gain_db = g;
+                b.enabled = true;
+                self.s.bands[*band] = b;
+                self.touch(*name, fmt_db(g));
+            }
+            hifi::label(
+                ui.painter(),
+                Pos2::new(r.center().x, fr.bottom() + 22.0),
+                Align2::CENTER_CENTER,
+                &fmt_db(b.gain_db),
+                hifi::num(14.0),
+                t.text,
+            );
+            hifi::label(
+                ui.painter(),
+                Pos2::new(r.center().x, fr.bottom() + 44.0),
+                Align2::CENTER_CENTER,
+                &fmt_hz(b.freq),
+                hifi::ui_font(12.0),
+                t.dim,
+            );
+        }
+    }
+
+    fn footer(&mut self, ui: &mut Ui, o: Vec2, t: &Tokens) {
+        let p = ui.painter();
+        let y = o.y + DESIGN.y - 20.0;
+        let n = now();
+        let msg = match (&self.notice, &self.touched) {
+            (Some((m, at)), _) if n - at < 12.0 => Some((m.clone(), t.warn)),
+            (_, Some((name, v, at))) if n - at < 2.5 => Some((format!("{name}: {v}"), t.text)),
+            _ => None,
+        };
+        if !self.s.simple {
+            hifi::label_fit(
+                p,
+                Pos2::new(o.x + 24.0, y),
+                Align2::LEFT_CENTER,
+                "Drag the points on the graph · scroll over one for Q · right-click to switch a band off · double-click to reset · Space: bypass · Ctrl+O / Ctrl+S or drop a file: load / save",
+                hifi::ui_font(11.5),
+                t.dim,
+                if msg.is_some() { 760.0 } else { DESIGN.x - 48.0 },
+            );
+        }
+        if let Some((m, c)) = msg {
+            hifi::label_fit(
+                p,
+                Pos2::new(o.x + DESIGN.x - 24.0, y),
+                Align2::RIGHT_CENTER,
+                &m,
+                hifi::ui_font(12.0),
+                c,
+                if self.s.simple { 1100.0 } else { 440.0 },
+            );
+        }
+    }
+
+    // ------------------------------------------------------------ settings
+
+    fn settings_drawer(&mut self, ctx: &egui::Context, t: &Tokens) {
+        let mut open = self.settings_open;
+        let mut look = self.s.look;
+        let mut system_bar = self.s.system_title_bar;
+        let mut actions: Vec<Action> = Vec::new();
+        let backend_names: Vec<String> = self.backends.iter().map(|b| b.label.clone()).collect();
+        let backend_cur = self
+            .backends
+            .iter()
+            .position(|b| Some(&b.id) == self.s.backend.as_ref())
+            .unwrap_or(0);
+        let fixed_input = self.backend().is_some_and(|b| b.fixed_input);
+        let is_win_engine = self.is_win_engine();
+        let mut inputs = vec!["Default input".to_string()];
+        inputs.extend(self.devices.inputs.iter().map(|d| d.label.clone()));
+        let in_cur = self
+            .s
+            .input
+            .as_ref()
+            .and_then(|id| self.devices.inputs.iter().position(|d| &d.id == id))
+            .map_or(0, |i| i + 1);
+        let mut outputs = vec!["Default output".to_string()];
+        outputs.extend(self.devices.outputs.iter().map(|d| d.label.clone()));
+        let out_cur = self
+            .s
+            .output
+            .as_ref()
+            .and_then(|id| self.devices.outputs.iter().position(|d| &d.id == id))
+            .map_or(0, |i| i + 1);
+        let mut latency = self.s.latency_ms;
+        let dropouts = self
+            .shared
+            .dropouts
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let help = self.help_text();
+        let engine = self.engine;
+        let mut analyser = self.s.analyser;
+        let mut colours = vec!["Display".to_string()];
+        colours.extend(Scheme::ALL.iter().map(|s| title_case(s.name())));
+        let colour_cur = if self.s.analyser_ink {
+            0
+        } else {
+            1 + Scheme::ALL
+                .iter()
+                .position(|s| *s == self.s.analyser_scheme)
+                .unwrap_or(0)
+        };
+        let styles: Vec<String> = ["Fill and line", "Line", "Fill"].map(String::from).to_vec();
+        let style_cur = Look::ALL
+            .iter()
+            .position(|l| *l == self.s.analyser_fill)
+            .unwrap_or(0);
+
+        hifi::drawer(ctx, t, "Settings", &mut open, |ui| {
+            hifi::drawer_heading(ui, t, "Audio");
+            let r = hifi::drawer_row(ui, t, "System", 200.0);
+            if let Some(i) = hifi::select(ui, r, "backend", t, &backend_names, backend_cur) {
+                actions.push(Action::Backend(i));
+            }
+            let r = hifi::drawer_row(ui, t, "Input", 200.0);
+            if fixed_input {
+                hifi::label_fit(
+                    ui.painter(),
+                    Pos2::new(r.right(), r.center().y),
+                    Align2::RIGHT_CENTER,
+                    if is_win_engine {
+                        "Windows audio (all apps)"
+                    } else {
+                        "TAW Equaliser (apps play here)"
+                    },
+                    hifi::ui_font(12.5),
+                    t.dim,
+                    200.0,
+                );
+            } else if let Some(i) = hifi::select(ui, r, "input", t, &inputs, in_cur) {
+                actions.push(Action::Input(i));
+            }
+            let r = hifi::drawer_row(
+                ui,
+                t,
+                if is_win_engine {
+                    "Output (meters)"
+                } else {
+                    "Output"
+                },
+                200.0,
+            );
+            if let Some(i) = hifi::select(ui, r, "output", t, &outputs, out_cur) {
+                actions.push(Action::Output(i));
+            }
+            if !fixed_input {
+                let r = hifi::drawer_row(ui, t, "Buffer", 200.0);
+                let sr = Rect::from_min_size(r.min + Vec2::new(8.0, 5.0), Vec2::new(130.0, 16.0));
+                let resp = hifi::hslider(ui, sr, Id::new("latency"), t, &mut latency, &LATENCY);
+                hifi::label(
+                    ui.painter(),
+                    Pos2::new(r.right(), r.center().y),
+                    Align2::RIGHT_CENTER,
+                    &format!("{latency:.0} ms"),
+                    hifi::num(12.0),
+                    t.text,
+                );
+                if resp.drag_stopped() || (resp.changed() && !resp.dragged()) {
+                    actions.push(Action::Restart);
+                }
+            }
+            ui.horizontal(|ui| {
+                let mut add = |ui: &mut Ui, label: &str, a: Action| {
+                    let w = hifi::button_width(ui, label);
+                    let (r, _) = ui.allocate_exact_size(Vec2::new(w, 26.0), egui::Sense::hover());
+                    if hifi::button(ui, r, Id::new(("drawer", label)), t, label, false).clicked() {
+                        actions.push(a);
+                    }
+                };
+                add(ui, "Rescan devices", Action::Rescan);
+                if is_win_engine {
+                    let install = match engine {
+                        EngineState::NotInstalled => "Install engine",
+                        EngineState::Outdated => "Update engine",
+                        _ => "Add to an output",
+                    };
+                    add(ui, install, Action::Install);
+                    if engine != EngineState::NotInstalled {
+                        add(ui, "Remove", Action::Remove);
+                    }
+                }
+            });
+            if !is_win_engine {
+                ui.label(
+                    egui::RichText::new(format!("Dropouts: {dropouts}"))
+                        .font(hifi::ui_font(12.0))
+                        .color(t.dim),
+                );
+            }
+            ui.label(
+                egui::RichText::new(&help.0)
+                    .font(hifi::ui_font(12.5))
+                    .color(if help.1 { t.warn } else { t.dim }),
+            );
+
+            hifi::drawer_heading(ui, t, "Spectrum behind the curve");
+            let r = hifi::drawer_row(ui, t, "Show it", 32.0);
+            let sw = Rect::from_min_size(r.min + Vec2::new(0.0, 4.0), Vec2::new(32.0, 18.0));
+            if hifi::switch(ui, sw, Id::new("analyser"), t, analyser).clicked() {
+                analyser = !analyser;
+            }
+            let r = hifi::drawer_row(ui, t, "Colour", 160.0);
+            if let Some(i) = hifi::select(ui, r, "an-colour", t, &colours, colour_cur) {
+                actions.push(Action::Colour(i));
+            }
+            let r = hifi::drawer_row(ui, t, "Style", 160.0);
+            if let Some(i) = hifi::select(ui, r, "an-style", t, &styles, style_cur) {
+                actions.push(Action::Style(i));
+            }
+
+            hifi::look_settings(ui, t, &mut look);
+            hifi::drawer_heading(ui, t, "Window");
+            let r = hifi::drawer_row(ui, t, "Use the system title bar", 32.0);
+            let sw = Rect::from_min_size(r.min + Vec2::new(0.0, 4.0), Vec2::new(32.0, 18.0));
+            if hifi::switch(ui, sw, Id::new("system-bar"), t, system_bar).clicked() {
+                system_bar = !system_bar;
+            }
+        });
+
+        self.settings_open = open;
+        self.s.look = look;
+        self.s.analyser = analyser;
+        if (latency - self.s.latency_ms).abs() > f32::EPSILON {
+            self.s.latency_ms = latency;
+            self.touch("Buffer", format!("{latency:.0} ms"));
+        }
+        if system_bar != self.s.system_title_bar {
+            self.s.system_title_bar = system_bar;
+            ctx.send_viewport_cmd(ViewportCommand::Decorations(system_bar));
+        }
+        for a in actions {
+            match a {
+                Action::Backend(i) => {
+                    self.s.backend = Some(self.backends[i].id.clone());
+                    self.s.input = None;
+                    self.s.output = None;
+                    self.refresh_devices();
+                    self.restart_if_running();
+                }
+                Action::Input(i) => {
+                    self.s.input = (i > 0).then(|| self.devices.inputs[i - 1].id.clone());
+                    self.restart_if_running();
+                }
+                Action::Output(i) => {
+                    self.s.output = (i > 0).then(|| self.devices.outputs[i - 1].id.clone());
+                    self.restart_if_running();
+                }
+                Action::Restart => self.restart_if_running(),
+                Action::Rescan => {
+                    self.refresh_devices();
+                    self.touch(
+                        "Devices",
+                        format!(
+                            "{} in / {} out",
+                            self.devices.inputs.len(),
+                            self.devices.outputs.len()
+                        ),
+                    );
+                }
+                Action::Install => self.run_setup(Setup::Install),
+                Action::Remove => self.run_setup(Setup::Remove),
+                Action::Colour(i) => {
+                    if i == 0 {
+                        self.s.analyser_ink = true;
+                    } else {
+                        self.s.analyser_ink = false;
+                        self.s.analyser_scheme = Scheme::ALL[i - 1];
+                    }
+                }
+                Action::Style(i) => self.s.analyser_fill = Look::ALL[i],
+            }
+        }
+    }
+
+    /// What to do with the audio choice in hand, or what went wrong.
+    fn help_text(&self) -> (String, bool) {
+        let is_win_engine = self.is_win_engine();
+        let is_pw_sink = self.s.backend.as_deref() == Some(audio::PIPEWIRE_SINK);
+        if let Some(e) = self.audio_error.as_ref().or(self.device_error.as_ref()) {
+            (e.clone(), true)
+        } else if is_win_engine && self.engine == EngineState::NotInstalled {
+            ("The Equaliser's engine isn't installed yet. Press Install engine, allow Windows' permission prompt, and pick your output in the window that opens. Every app on that output then goes through the Equaliser, with no virtual cable.".to_string(), false)
+        } else if is_win_engine && self.engine == EngineState::Outdated {
+            ("The engine installed in Windows is older than this Equaliser, so some settings (such as the high-pass, low-pass and notch filters) have no effect. Press Update engine, allow Windows' permission prompt, and pick the same output to install the new engine.".to_string(), true)
+        } else if is_win_engine {
+            ("The Equaliser's engine runs inside Windows and equalises every app on the outputs it's installed on (Add puts it on another, Remove takes it off them all). The On switch sends your settings to it, and they stay set after the Equaliser closes. Use Bypass to switch the EQ off.".to_string(), false)
+        } else if is_pw_sink {
+            ("The Equaliser adds an output called \"TAW Equaliser\". Choose it in your sound settings (or route apps to it with qpwgraph or Helvum) and the Equaliser plays the result to the Output above.".to_string(), false)
+        } else if self
+            .s
+            .backend
+            .as_deref()
+            .is_some_and(|b| b.eq_ignore_ascii_case("asio"))
+        {
+            ("Pick your interface for Input and Output. Send your playback into its inputs (a virtual channel in its mixer), and the Equaliser plays the result to its outputs.".to_string(), false)
+        } else if self
+            .s
+            .backend
+            .as_deref()
+            .is_some_and(|b| b.eq_ignore_ascii_case("wasapi"))
+        {
+            ("Set Windows' default output to a virtual cable (such as VB-CABLE), choose the cable's output (such as \"CABLE Output\") as Input and your speakers as Output.".to_string(), false)
+        } else {
+            (
+                "Audio from Input goes through the EQ to Output.".to_string(),
+                false,
+            )
+        }
+    }
+}
+
+/// Changes asked for in the settings drawer, applied after it's drawn.
+enum Action {
+    Backend(usize),
+    Input(usize),
+    Output(usize),
+    Restart,
+    Rescan,
+    Install,
+    Remove,
+    Colour(usize),
+    Style(usize),
+}
+
+fn title_case(s: &str) -> String {
+    let lower = s.to_lowercase();
+    let mut c = lower.chars();
+    match c.next() {
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+        None => String::new(),
     }
 }
 
@@ -427,9 +1351,11 @@ fn now() -> f64 {
 
 impl eframe::App for EqApp {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
-        self.fit_to_window(ui);
-        let th = Theme::new(self.s.panel, self.s.knobs);
-        set_visuals(ui.ctx(), &th);
+        // Lay out at the design size and scale the whole panel to fit.
+        taw_panel::frame::fit_to_window(ui.ctx(), DESIGN, 2.0);
+        let ctx = ui.ctx().clone();
+        let t = Tokens::from_ctx(&ctx, &self.s.look);
+        hifi::apply_visuals(&ctx, &t);
 
         let dt = ui.input(|i| i.stable_dt).min(0.1);
         self.update_meters(dt);
@@ -437,13 +1363,12 @@ impl eframe::App for EqApp {
             self.analyzer.update();
         }
         if self.running.is_some() {
-            ui.ctx()
-                .request_repaint_after(std::time::Duration::from_millis(16));
+            ctx.request_repaint_after(std::time::Duration::from_millis(16));
         }
-        self.watch_engine(ui.ctx());
+        self.watch_engine(&ctx);
 
         // Keyboard shortcuts (not while a control has focus).
-        let free = ui.memory(|m| m.focused().is_none());
+        let free = ui.memory(|m| m.focused().is_none()) && !self.settings_open;
         let (space, ctrl_o, ctrl_s) = ui.input(|i| {
             (
                 i.key_pressed(Key::Space),
@@ -467,21 +1392,40 @@ impl eframe::App for EqApp {
         }
 
         let screen = ui.max_rect();
-        ui.painter().rect_filled(screen, 0, th.page);
+        hifi::faceplate(ui.painter(), screen, &t);
         let origin = (screen.center() - DESIGN / 2.0).max(screen.min);
         let o = origin.to_vec2();
-        let panel = Rect::from_min_size(origin, DESIGN);
-        draw_panel_bg(ui.painter(), panel, &th);
 
-        self.top_strip(ui, o, &th);
-        stripe(
-            ui.painter(),
-            Rect::from_min_size(Pos2::new(22.0, 110.0) + o, Vec2::new(DESIGN.x - 44.0, 6.0)),
-        );
-        self.response_section(ui, o, &th);
-        self.audio_section(ui, o, &th);
-        self.band_strips(ui, o, &th);
-        self.footer(ui, o, &th);
+        self.plate(ui, screen, o, &t);
+        self.controls_row(ui, o, &t);
+        if self.s.simple {
+            let g = Rect::from_min_max(
+                Pos2::new(24.0, 162.0) + o,
+                Pos2::new(DESIGN.x - 24.0, 372.0) + o,
+            );
+            self.graph_area(ui, g, &t);
+            let area = Rect::from_min_max(
+                Pos2::new(24.0, 390.0) + o,
+                Pos2::new(DESIGN.x - 24.0, DESIGN.y - 40.0) + o,
+            );
+            self.tone(ui, area, &t);
+        } else {
+            let g = Rect::from_min_max(
+                Pos2::new(24.0, 162.0) + o,
+                Pos2::new(DESIGN.x - 24.0, 402.0) + o,
+            );
+            self.graph_area(ui, g, &t);
+            let area = Rect::from_min_max(
+                Pos2::new(24.0, 418.0) + o,
+                Pos2::new(DESIGN.x - 24.0, DESIGN.y - 40.0) + o,
+            );
+            self.bands(ui, area, &t);
+        }
+        self.footer(ui, o, &t);
+        self.settings_drawer(&ctx, &t);
+        if !self.s.system_title_bar {
+            hifi::resize_edges(ui, screen);
+        }
 
         self.shared.store(&self.settings());
     }
@@ -491,826 +1435,36 @@ impl eframe::App for EqApp {
     }
 
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        Theme::new(self.s.panel, self.s.knobs)
-            .page
+        Tokens::new(&self.s.look, false)
+            .face_bottom
             .to_normalized_gamma_f32()
     }
 }
 
-pub(crate) fn set_visuals(ctx: &egui::Context, th: &Theme) {
-    let mut v = egui::Visuals::dark();
-    v.window_fill = Color32::from_rgb(0x1f, 0x1f, 0x1f);
-    v.panel_fill = th.panel;
-    v.extreme_bg_color = LCD_BG;
-    v.selection.bg_fill = LCD_DIM;
-    v.selection.stroke = Stroke::new(1.0, LCD_INK);
-    v.override_text_color = Some(Color32::from_rgb(0xec, 0xe8, 0xdd));
-    v.window_stroke = Stroke::new(1.0, Color32::from_rgba_unmultiplied(0xec, 0xe8, 0xdd, 60));
-    v.widgets.hovered.weak_bg_fill = LCD_DIM;
-    if ctx.global_style().visuals != v {
-        ctx.set_visuals(v);
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-pub(crate) use taw_panel::frame::draw_panel_bg;
-
-impl EqApp {
-    fn top_strip(&mut self, ui: &mut Ui, o: Vec2, th: &Theme) {
-        let at = |x: f32, y: f32| Pos2::new(x, y) + o;
-
-        // Maker wordmark, logo and model line.
-        {
-            let p = ui.painter();
-            let mut job = LayoutJob::default();
-            job.append(
-                "Timster's Audio Works - ",
-                0.0,
-                TextFormat {
-                    font_id: font(F_MAKER, 13.0),
-                    color: th.legend_dim,
-                    ..Default::default()
-                },
-            );
-            job.append(
-                "Equaliser",
-                0.0,
-                TextFormat {
-                    font_id: font(F_MAKER_BOLD, 13.0),
-                    color: th.legend,
-                    ..Default::default()
-                },
-            );
-            let g = p.layout_job(job);
-            let r = Rect::from_min_size(at(22.0, 14.0), g.size() + Vec2::new(20.0, 10.0));
-            p.rect_stroke(
-                r,
-                CornerRadius::same(3),
-                Stroke::new(1.0, th.frame),
-                StrokeKind::Inside,
-            );
-            p.galley(r.min + Vec2::new(10.0, 5.0), g, th.legend);
-        }
-        slanted_text(
-            ui,
-            at(24.0, 50.0),
-            "EQUALISER",
-            font(F_LOGO, 30.0),
-            th.legend,
-            3.0,
-            12.0,
-        );
-        text(
-            ui.painter(),
-            at(22.0, 92.0),
-            Align2::LEFT_TOP,
-            &format!("EQ-001 · TEN BAND PARAMETRIC EQUALISER · V{VERSION}"),
-            font(F_LEGEND, 10.0),
-            th.legend_dim,
-            2.4,
-        );
-
-        // LED display
-        let t = now();
-        let line1 = match &self.touched {
-            Some((n, v, when)) if t - when < 2.5 => (n.clone(), v.clone()),
-            _ => (
-                self.s.preset_name.clone(),
-                if self.s.bypass {
-                    "BYPASS".into()
-                } else {
-                    "EQ IN".into()
-                },
-            ),
-        };
-        let rate = self
-            .shared
-            .sample_rate
-            .load(std::sync::atomic::Ordering::Relaxed);
-        let line2 = match (&self.running, &self.audio_error) {
-            (Some(r), _) if self.is_win_engine() => (
-                r.description.clone(),
-                match self.engine {
-                    EngineState::NotInstalled => "NO ENGINE".into(),
-                    EngineState::Idle => "ENGINE IDLE".into(),
-                    EngineState::Active if rate > 0 => format!("{rate} HZ"),
-                    EngineState::Active => "ENGINE ON".into(),
-                    EngineState::Outdated => "UPDATE ENGINE".into(),
-                },
-            ),
-            (Some(r), _) => (
-                r.description.clone(),
-                if rate > 0 {
-                    format!("{rate} HZ")
-                } else {
-                    "RUNNING".into()
-                },
-            ),
-            (None, Some(_)) => ("AUDIO ERROR".into(), "STOP".into()),
-            (None, None) => ("AUDIO STOPPED".into(), "STOP".into()),
-        };
-        lcd(
-            ui.painter(),
-            Rect::from_min_size(at(340.0, 24.0), Vec2::new(316.0, 52.0)),
-            &[line1, line2],
-        );
-
-        // Preset keys
-        let keys: [(&str, KeyColour); 4] = [
-            ("Load", K_CREAM),
-            ("Save", K_CREAM),
-            ("Flat", K_GREY),
-            ("Reset", K_GREY),
-        ];
-        for (i, (label, col)) in keys.iter().enumerate() {
-            let r = Rect::from_min_size(at(680.0 + i as f32 * 60.0, 36.0), Vec2::new(52.0, 22.0));
-            if key(ui, r, Id::new(("preset", i)), *col, None, label, th).clicked() {
-                match i {
-                    0 => self.load_preset(),
-                    1 => self.save_preset(),
-                    2 => {
-                        for b in &mut self.s.bands {
-                            b.gain_db = 0.0;
-                        }
-                        self.s.preamp_db = 0.0;
-                        self.touch("All gains", "0.0 dB");
-                    }
-                    _ => {
-                        self.s.bands = default_bands();
-                        self.s.preamp_db = 0.0;
-                        self.s.preset_name = "Flat".into();
-                        self.touch("Reset", "default bands");
-                    }
-                }
-            }
-        }
-        text(
-            ui.painter(),
-            at(680.0, 18.0),
-            Align2::LEFT_TOP,
-            "APO PRESET",
-            font(F_LEGEND_BOLD, 10.5),
-            th.legend_dim,
-            2.0,
-        );
-
-        // Meters
-        {
-            let p = ui.painter();
-            let lr = |a: f32, b: f32| [a, b];
-            meter(
-                p,
-                Rect::from_min_size(at(948.0, 26.0), Vec2::new(160.0, 16.0)),
-                lr(self.peaks_db[0], self.peaks_db[1]),
-            );
-            meter(
-                p,
-                Rect::from_min_size(at(948.0, 50.0), Vec2::new(160.0, 16.0)),
-                lr(self.peaks_db[2], self.peaks_db[3]),
-            );
-            legend(p, at(940.0, 34.0), Align2::RIGHT_CENTER, "In", th);
-            legend(p, at(940.0, 58.0), Align2::RIGHT_CENTER, "Out", th);
-            legend(p, at(1028.0, 74.0), Align2::CENTER_TOP, "Level L / R", th);
-        }
-
-        // Preamp, and Auto, which keeps the response's peak at 0 dB
-        if self.s.auto_preamp {
-            self.s.preamp_db = auto_preamp_db(&self.s.bands, 48_000.0);
-        }
-        let mut pre = self.s.preamp_db;
-        if knob(
-            ui,
-            at(1150.0, 44.0),
-            20.0,
-            Id::new("preamp"),
-            &mut pre,
-            &PREAMP,
-            None,
-            th,
+    #[test]
+    fn older_settings_still_load() {
+        // 0.3.0 settings have the Jupiter panel and no look fields.
+        let s: Saved = serde_json::from_str(
+            r#"{"preamp_db": -3.0, "panel": "Silver", "knobs": "Pointer", "preset_name": "Warm"}"#,
         )
-        .changed()
-        {
-            // Turning the knob takes over from Auto.
-            self.s.auto_preamp = false;
-            self.s.preamp_db = pre;
-            self.touch("Preamp", fmt_db(pre));
-        }
-        legend(
-            ui.painter(),
-            at(1150.0, 74.0),
-            Align2::CENTER_TOP,
-            "Preamp",
-            th,
-        );
-        readout(
-            ui.painter(),
-            at(1150.0, 90.0),
-            &fmt_db(self.s.preamp_db),
-            64.0,
-        );
-        let r = Rect::from_min_size(at(1180.0, 46.0), Vec2::new(36.0, 18.0));
-        if key(
-            ui,
-            r,
-            Id::new("auto-preamp"),
-            K_GREY,
-            Some(self.s.auto_preamp),
-            "Auto",
-            th,
-        )
-        .clicked()
-        {
-            self.s.auto_preamp = !self.s.auto_preamp;
-            if self.s.auto_preamp {
-                self.s.preamp_db = auto_preamp_db(&self.s.bands, 48_000.0);
-            }
-            self.touch(
-                "Auto preamp",
-                if self.s.auto_preamp {
-                    fmt_db(self.s.preamp_db)
-                } else {
-                    "off".into()
-                },
-            );
-        }
-
-        // Panel and knob switches
-        let group = |ui: &Ui, x: f32, label: &str| {
-            text(
-                ui.painter(),
-                at(x, 18.0),
-                Align2::CENTER_TOP,
-                label,
-                font(F_LEGEND_BOLD, 10.5),
-                th.legend_dim,
-                2.0,
-            );
-        };
-        group(ui, 1284.0, "PANEL");
-        group(ui, 1392.0, "KNOBS");
-        let sw: [(&str, bool, f32); 4] = [
-            ("Black", self.s.panel == PanelKind::Black, 1238.0),
-            ("Silver", self.s.panel == PanelKind::Silver, 1286.0),
-            ("Colour", self.s.knobs == KnobStyle::Colour, 1346.0),
-            ("Pointer", self.s.knobs == KnobStyle::Pointer, 1394.0),
-        ];
-        for (i, (label, on, x)) in sw.iter().enumerate() {
-            let r = Rect::from_min_size(at(*x, 46.0), Vec2::new(42.0, 18.0));
-            if key(ui, r, Id::new(("switch", i)), K_GREY, Some(*on), label, th).clicked() {
-                match i {
-                    0 => self.s.panel = PanelKind::Black,
-                    1 => self.s.panel = PanelKind::Silver,
-                    2 => self.s.knobs = KnobStyle::Colour,
-                    _ => self.s.knobs = KnobStyle::Pointer,
-                }
-            }
-        }
-
-        // Bypass and Run / Stop
-        let r = Rect::from_min_size(at(1450.0, 46.0), Vec2::new(56.0, 18.0));
-        if key(
-            ui,
-            r,
-            Id::new("bypass"),
-            K_YELLOW,
-            Some(self.s.bypass),
-            "Bypass",
-            th,
-        )
-        .clicked()
-        {
-            self.s.bypass = !self.s.bypass;
-            self.touch("Bypass", if self.s.bypass { "on" } else { "off" });
-        }
-        let r = Rect::from_min_size(at(1524.0, 34.0), Vec2::new(94.0, 30.0));
-        if key(
-            ui,
-            r,
-            Id::new("run"),
-            K_RED,
-            Some(self.running.is_some()),
-            "Run / Stop",
-            th,
-        )
-        .clicked()
-        {
-            if self.running.is_some() {
-                self.stop_audio();
-            } else {
-                self.start_audio();
-            }
-        }
+        .unwrap();
+        assert_eq!(s.preamp_db, -3.0);
+        assert_eq!(s.preset_name, "Warm");
+        assert_eq!(s.look, hifi::Look::default());
+        assert!(s.analyser_ink);
+        assert!(!s.simple);
     }
 
-    fn response_section(&mut self, ui: &mut Ui, o: Vec2, th: &Theme) {
-        let rect = Rect::from_min_max(Pos2::new(22.0, 136.0) + o, Pos2::new(1290.0, 500.0) + o);
-        section(ui.painter(), rect, "Response", th, false);
-        let rate = match self
-            .shared
-            .sample_rate
-            .load(std::sync::atomic::Ordering::Relaxed)
-        {
-            0 => 48_000.0,
-            r => r as f32,
-        };
-        let mut s = self.settings();
-        let res = graph::graph(
-            ui,
-            Rect::from_min_max(
-                rect.min + Vec2::new(14.0, 20.0),
-                rect.max - Vec2::new(14.0, 14.0),
-            ),
-            &mut s,
-            &mut self.s.selected,
-            rate,
-            self.s.analyser.then_some(&self.analyzer),
-            spectrum::Style {
-                scheme: self.s.analyser_scheme,
-                fill: self.s.analyser_fill,
-                strength: 0.4,
-            },
-        );
-        if let Some(i) = res.changed {
-            let b = s.bands[i];
-            self.touch(
-                format!("Band {} {}", i + 1, b.kind.short()),
-                if b.enabled {
-                    format!("{} {:+.1}", fmt_freq(b.freq), b.gain_db)
-                } else {
-                    "off".into()
-                },
-            );
-        }
-        self.s.bands = s.bands;
-
-        // Analyser tabs on the top edge, at the right: its colours, its
-        // style, and on / off.
-        let y = rect.top() - 9.0;
-        let r = Rect::from_min_size(Pos2::new(rect.right() - 128.0, y), Vec2::new(112.0, 18.0));
-        if frame_tab(
-            ui,
-            r,
-            "analyser-tab",
-            Some(self.s.analyser),
-            "ANALYSER",
-            None,
-            th,
-        ) {
-            self.s.analyser = !self.s.analyser;
-        }
-        let r = Rect::from_min_size(Pos2::new(rect.right() - 276.0, y), Vec2::new(140.0, 18.0));
-        let fill = self.s.analyser_fill.name();
-        if frame_tab(ui, r, "analyser-fill", None, "STYLE", Some(fill), th) {
-            self.s.analyser_fill = self.s.analyser_fill.next();
-            self.touch("Analyser style", self.s.analyser_fill.name());
-        }
-        let r = Rect::from_min_size(Pos2::new(rect.right() - 410.0, y), Vec2::new(126.0, 18.0));
-        let scheme = self.s.analyser_scheme.name();
-        if frame_tab(ui, r, "analyser-colour", None, "COLOUR", Some(scheme), th) {
-            self.s.analyser_scheme = self.s.analyser_scheme.next();
-            self.touch("Analyser colour", self.s.analyser_scheme.name());
-        }
-    }
-
-    fn audio_section(&mut self, ui: &mut Ui, o: Vec2, th: &Theme) {
-        let rect = Rect::from_min_max(Pos2::new(1306.0, 136.0) + o, Pos2::new(1618.0, 500.0) + o);
-        section(ui.painter(), rect, "Audio", th, false);
-        let x0 = rect.left() + 14.0;
-        let w = rect.width() - 28.0;
-        let row = |y: f32| Rect::from_min_size(Pos2::new(x0, rect.top() + y), Vec2::new(w, 24.0));
-        let label = |ui: &Ui, y: f32, s: &str| {
-            legend(
-                ui.painter(),
-                Pos2::new(x0, rect.top() + y),
-                Align2::LEFT_TOP,
-                s,
-                th,
-            );
-        };
-
-        // Audio system
-        label(ui, 18.0, "System");
-        let names: Vec<String> = self.backends.iter().map(|b| b.label.clone()).collect();
-        let cur = self
-            .backends
-            .iter()
-            .position(|b| Some(&b.id) == self.s.backend.as_ref())
-            .unwrap_or(0);
-        if let Some(i) = lcd_combo(ui, row(34.0), "backend", &names, cur) {
-            self.s.backend = Some(self.backends[i].id.clone());
-            self.s.input = None;
-            self.s.output = None;
-            self.refresh_devices();
-            self.restart_if_running();
-        }
-
-        let fixed_input = self.backend().is_some_and(|b| b.fixed_input);
-        let is_pw_sink = self.s.backend.as_deref() == Some(audio::PIPEWIRE_SINK);
-        let is_win_engine = self.s.backend.as_deref() == Some(audio::WINDOWS_ENGINE);
-
-        // Input
-        label(ui, 70.0, "Input");
-        if fixed_input {
-            let r = row(86.0);
-            ui.painter().rect_filled(r, CornerRadius::same(2), LCD_BG);
-            glow_text(
-                ui.painter(),
-                r.left_center() + Vec2::new(8.0, 0.0),
-                Align2::LEFT_CENTER,
-                if is_win_engine {
-                    "WINDOWS AUDIO (ALL APPS)"
-                } else {
-                    "TAW EQUALISER (APPS PLAY HERE)"
-                },
-                font(F_MONO, 13.0),
-                LCD_INK,
-                0.3,
-            );
-        } else {
-            let mut items = vec!["Default input".to_string()];
-            items.extend(self.devices.inputs.iter().map(|d| d.label.clone()));
-            let cur = self
-                .s
-                .input
-                .as_ref()
-                .and_then(|id| self.devices.inputs.iter().position(|d| &d.id == id))
-                .map_or(0, |i| i + 1);
-            if let Some(i) = lcd_combo(ui, row(86.0), "input", &items, cur) {
-                self.s.input = (i > 0).then(|| self.devices.inputs[i - 1].id.clone());
-                self.restart_if_running();
-            }
-        }
-
-        // Output
-        // With the Windows engine, Output only picks what the meters hear.
-        label(
-            ui,
-            122.0,
-            if is_win_engine {
-                "Output (meters)"
-            } else {
-                "Output"
-            },
-        );
-        let mut items = vec!["Default output".to_string()];
-        items.extend(self.devices.outputs.iter().map(|d| d.label.clone()));
-        let cur = self
-            .s
-            .output
-            .as_ref()
-            .and_then(|id| self.devices.outputs.iter().position(|d| &d.id == id))
-            .map_or(0, |i| i + 1);
-        if let Some(i) = lcd_combo(ui, row(138.0), "output", &items, cur) {
-            self.s.output = (i > 0).then(|| self.devices.outputs[i - 1].id.clone());
-            self.restart_if_running();
-        }
-
-        // Buffer knob (two-device backends only) and rescan
-        let ky = rect.top() + 200.0;
-        if !fixed_input {
-            let mut lat = self.s.latency_ms;
-            let resp = knob(
-                ui,
-                Pos2::new(x0 + 26.0, ky),
-                18.0,
-                Id::new("latency"),
-                &mut lat,
-                &LATENCY,
-                Some(FAM_PITCH),
-                th,
-            );
-            if resp.changed() {
-                self.s.latency_ms = lat;
-                self.touch("Buffer", format!("{lat:.0} ms"));
-            }
-            if resp.drag_stopped() || (resp.changed() && !resp.dragged()) {
-                self.restart_if_running();
-            }
-            legend(
-                ui.painter(),
-                Pos2::new(x0 + 26.0, ky + 26.0),
-                Align2::CENTER_TOP,
-                "Buffer",
-                th,
-            );
-            readout(
-                ui.painter(),
-                Pos2::new(x0 + 26.0, ky + 42.0),
-                &format!("{:.0} ms", self.s.latency_ms),
-                56.0,
-            );
-        }
-        if is_win_engine {
-            // Setup for the system-wide engine, where the Buffer knob would be.
-            let install = match self.engine {
-                EngineState::NotInstalled => "Install",
-                EngineState::Outdated => "Update",
-                _ => "Add",
-            };
-            let r = Rect::from_min_size(Pos2::new(x0, ky - 6.0), Vec2::new(52.0, 18.0));
-            if key(ui, r, Id::new("engine-install"), K_CREAM, None, install, th).clicked() {
-                self.run_setup(Setup::Install);
-            }
-            if self.engine != EngineState::NotInstalled {
-                // Where Dropouts would be (the engine has none to count).
-                let r = Rect::from_min_size(Pos2::new(x0 + 174.0, ky - 6.0), Vec2::new(52.0, 18.0));
-                if key(ui, r, Id::new("engine-remove"), K_GREY, None, "Remove", th).clicked() {
-                    self.run_setup(Setup::Remove);
-                }
-            }
-        }
-        let kr = Rect::from_min_size(Pos2::new(x0 + 78.0, ky - 6.0), Vec2::new(52.0, 18.0));
-        if key(ui, kr, Id::new("rescan"), K_GREY, None, "Rescan", th).clicked() {
-            self.refresh_devices();
-            self.touch(
-                "Devices",
-                format!(
-                    "{} in / {} out",
-                    self.devices.inputs.len(),
-                    self.devices.outputs.len()
-                ),
-            );
-        }
-        if !is_win_engine {
-            let p = ui.painter();
-            let drops = self
-                .shared
-                .dropouts
-                .load(std::sync::atomic::Ordering::Relaxed);
-            legend(
-                p,
-                Pos2::new(x0 + 200.0, ky - 18.0),
-                Align2::CENTER_TOP,
-                "Dropouts",
-                th,
-            );
-            readout(p, Pos2::new(x0 + 200.0, ky - 2.0), &drops.to_string(), 64.0);
-        }
-
-        // Help or error text
-        let help = if let Some(e) = self.audio_error.as_ref().or(self.device_error.as_ref()) {
-            (e.clone(), LED)
-        } else if is_win_engine && self.engine == EngineState::NotInstalled {
-            (
-                "The Equaliser's engine isn't installed yet. Press Install, allow Windows' permission prompt, and pick your output in the window that opens. Every app on that output then goes through EQ Box, with no virtual cable.".to_string(),
-                th.legend_dim,
-            )
-        } else if is_win_engine && self.engine == EngineState::Outdated {
-            (
-                "The engine installed in Windows is older than this Equaliser, so some settings (such as the HPF, LPF and notch filters) have no effect. Press Update, allow Windows' permission prompt, and pick the same output to install the new engine.".to_string(),
-                LED,
-            )
-        } else if is_win_engine {
-            (
-                "The Equaliser's engine runs inside Windows and equalises every app on the outputs it's installed on (Add puts it on another, Remove takes it off them all). Run sends your settings to it, and they stay set after EQ Box closes. Use Bypass to switch the EQ off.".to_string(),
-                th.legend_dim,
-            )
-        } else if is_pw_sink {
-            (
-                "The Equaliser adds an output called \"TAW Equaliser\". Choose it in your sound settings (or route apps to it with qpwgraph / Helvum) and the Equaliser plays the result to the Output above.".to_string(),
-                th.legend_dim,
-            )
-        } else if self
-            .s
-            .backend
-            .as_deref()
-            .is_some_and(|b| b.eq_ignore_ascii_case("asio"))
-        {
-            (
-                "Pick your interface for Input and Output. Send your playback into its inputs (a virtual channel in its mixer), and the Equaliser plays the result to its outputs.".to_string(),
-                th.legend_dim,
-            )
-        } else if self
-            .s
-            .backend
-            .as_deref()
-            .is_some_and(|b| b.eq_ignore_ascii_case("wasapi"))
-        {
-            (
-                "Set Windows' default output to a virtual cable (such as VB-CABLE), choose the cable's output (such as \"CABLE Output\") as Input and your speakers as Output.".to_string(),
-                th.legend_dim,
-            )
-        } else {
-            (
-                "Audio from Input goes through the EQ to Output.".to_string(),
-                th.legend_dim,
-            )
-        };
-        let galley = ui.painter().layout(help.0, font(F_LEGEND, 12.5), help.1, w);
-        ui.painter()
-            .galley(Pos2::new(x0, rect.top() + 262.0), galley, help.1);
-    }
-
-    fn band_strips(&mut self, ui: &mut Ui, o: Vec2, th: &Theme) {
-        let gap = 8.0;
-        let total = DESIGN.x - 44.0;
-        let w = (total - gap * (NUM_BANDS - 1) as f32) / NUM_BANDS as f32;
-        let top = 518.0;
-        let h = 330.0;
-        for i in 0..NUM_BANDS {
-            let rect = Rect::from_min_size(
-                Pos2::new(22.0 + i as f32 * (w + gap), top) + o,
-                Vec2::new(w, h),
-            );
-            self.band_strip(ui, i, rect, th);
-        }
-    }
-
-    fn band_strip(&mut self, ui: &mut Ui, i: usize, rect: Rect, th: &Theme) {
-        let sel = self.s.selected == i;
-        section(ui.painter(), rect, &format!("Band {}", i + 1), th, sel);
-        let chip = Rect::from_min_size(
-            Pos2::new(rect.right() - 30.0, rect.top() - 4.0),
-            Vec2::new(18.0, 8.0),
-        );
-        ui.painter().rect_filled(chip.expand(3.0), 0, th.panel);
-        ui.painter()
-            .rect_filled(chip, CornerRadius::same(1), BAND_COLOURS[i]);
-        let mut b = self.s.bands[i];
-        let before = b;
-        let mut touched: Option<(&str, String)> = None;
-        let mut interacted = false;
-
-        // Filter type: a stepped knob, with the type in its display
-        let kinds = FilterKind::ALL;
-        let mut t = kinds.iter().position(|k| *k == b.kind).unwrap_or(1) as f32;
-        // In the knob column, over Freq and Q.
-        let tx = rect.right() - 46.0;
-        let resp = knob(
-            ui,
-            Pos2::new(tx, rect.top() + 46.0),
-            17.0,
-            Id::new(("type", i)),
-            &mut t,
-            &TYPE,
-            Some(FAM_TYPE),
-            th,
-        );
-        interacted |= resp.is_pointer_button_down_on();
-        let kind = kinds[(t.round() as usize).min(kinds.len() - 1)];
-        if kind != b.kind {
-            b.kind = kind;
-            touched = Some(("Type", kind.short().to_string()));
-        }
-        legend(
-            ui.painter(),
-            Pos2::new(tx, rect.top() + 68.0),
-            Align2::CENTER_TOP,
-            "Type",
-            th,
-        );
-        readout(
-            ui.painter(),
-            Pos2::new(tx, rect.top() + 84.0),
-            b.kind.short(),
-            60.0,
-        );
-
-        // Gain fader
-        let fr = Rect::from_min_size(
-            Pos2::new(rect.left() + 14.0, rect.top() + 26.0),
-            Vec2::new(36.0, 244.0),
-        );
-        let resp = fader(
-            ui,
-            fr,
-            Id::new(("gain", i)),
-            &mut b.gain_db,
-            &GAIN,
-            None,
-            th,
-        );
-        interacted |= resp.is_pointer_button_down_on();
-        if resp.changed() {
-            touched = Some(("Gain", fmt_db(b.gain_db)));
-        }
-        // The gain readout lines up with the On key, its legend with "On".
-        let cx_f = fr.center().x;
-        legend(
-            ui.painter(),
-            Pos2::new(cx_f, rect.top() + 301.0),
-            Align2::CENTER_TOP,
-            "Gain",
-            th,
-        );
-        readout(
-            ui.painter(),
-            Pos2::new(cx_f, rect.top() + 279.0),
-            &if b.kind.has_gain() {
-                format!("{:+.1}", b.gain_db)
-            } else {
-                "--".to_string()
-            },
-            50.0,
-        );
-
-        // Frequency and Q knobs
-        let cx = rect.right() - 46.0;
-        let resp = knob(
-            ui,
-            Pos2::new(cx, rect.top() + 133.0),
-            19.0,
-            Id::new(("freq", i)),
-            &mut b.freq,
-            &freq_spec(default_bands()[i].freq),
-            Some(FAM_TONE),
-            th,
-        );
-        interacted |= resp.is_pointer_button_down_on();
-        if resp.changed() {
-            touched = Some(("Freq", fmt_hz(b.freq)));
-        }
-        legend(
-            ui.painter(),
-            Pos2::new(cx, rect.top() + 157.0),
-            Align2::CENTER_TOP,
-            "Freq",
-            th,
-        );
-        readout(
-            ui.painter(),
-            Pos2::new(cx, rect.top() + 173.0),
-            &fmt_hz(b.freq),
-            72.0,
-        );
-
-        let resp = knob(
-            ui,
-            Pos2::new(cx, rect.top() + 217.0),
-            19.0,
-            Id::new(("q", i)),
-            &mut b.q,
-            &q_spec(b.kind),
-            Some(FAM_TONE),
-            th,
-        );
-        interacted |= resp.is_pointer_button_down_on();
-        if resp.changed() {
-            touched = Some(("Q", format!("{:.2}", b.q)));
-        }
-        legend(
-            ui.painter(),
-            Pos2::new(cx, rect.top() + 241.0),
-            Align2::CENTER_TOP,
-            "Q",
-            th,
-        );
-        readout(
-            ui.painter(),
-            Pos2::new(cx, rect.top() + 256.0),
-            &format!("{:.2}", b.q),
-            56.0,
-        );
-
-        // On / off
-        let r = Rect::from_min_size(
-            Pos2::new(cx - 20.0, rect.top() + 280.0),
-            Vec2::new(40.0, 16.0),
-        );
-        if lit_key(ui, r, Id::new(("on", i)), ON_GREEN, b.enabled, "On", th).clicked() {
-            b.enabled = !b.enabled;
-            touched = Some(("", if b.enabled { "on".into() } else { "off".into() }));
-            interacted = true;
-        }
-
-        if interacted || touched.is_some() {
-            self.s.selected = i;
-        }
-        if b != before {
-            self.s.bands[i] = b;
-        }
-        if let Some((what, val)) = touched {
-            self.touch(format!("Band {} {what}", i + 1).trim().to_string(), val);
-        }
-    }
-
-    fn footer(&mut self, ui: &mut Ui, o: Vec2, th: &Theme) {
-        let p = ui.painter();
-        let y = 860.0;
-        text(
-            p,
-            Pos2::new(22.0, y) + o,
-            Align2::LEFT_TOP,
-            "Drag knobs and faders up or down (Shift for fine) · drag the points on the graph, scroll for Q, right-click to switch a band off · double-click to reset · Space: bypass · Ctrl+O / Ctrl+S or drop a file: load / save",
-            font(F_LEGEND, 12.0),
-            th.legend_dim,
-            0.4,
-        );
-        if let Some((msg, when)) = &self.notice {
-            if now() - when < 12.0 {
-                let r = Rect::from_min_size(Pos2::new(900.0, y - 2.0) + o, Vec2::new(718.0, 18.0));
-                let clip = p.with_clip_rect(r);
-                text(
-                    &clip,
-                    r.right_top(),
-                    Align2::RIGHT_TOP,
-                    msg,
-                    font(F_LEGEND, 12.5),
-                    FOCUS,
-                    0.3,
-                );
-            } else {
-                self.notice = None;
-            }
+    #[test]
+    fn tone_sliders_move_distinct_bands() {
+        let mut seen = std::collections::HashSet::new();
+        for (_, b) in TONE {
+            assert!(b < NUM_BANDS);
+            assert!(seen.insert(b));
         }
     }
 }
