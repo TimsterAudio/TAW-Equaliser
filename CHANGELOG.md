@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-The new TAW look (first working build, for review).
+## 0.3.0 – 2026-10-14
+
+EQ Box is now **Timster's Audio Works Equaliser** (EQ-001), one of the family's hi-fi separates with the Library, Player and Analyser.
+
+- New name on the panel, window and program (`taw-equaliser`). On Linux the output is called "TAW Equaliser".
+- Windows engine: now `taw_equaliser_apo.dll` in `Program Files\Timster's Audio Works\Equaliser`, settings in `ProgramData\Timster's Audio Works\Equaliser`, event log source "TAW Equaliser".
+- **Coming from EQ Box:** save your EQ as a preset first (panel settings start fresh). Installing the engine sees an EQ Box engine and offers to remove it, putting every device back, then installs in its place. Remove also cleans up an EQ Box engine.
+- The SP-10 Spectrum Analyser is no longer included: it's now its own download, the TAW Analyser (TimsterAudio/TAW-Analyser).
+- The panel, spectrum drawing and analyser now come from the shared TAW-Panel crate (0.3.0).
+
+### The TAW look
 
 - Spool's look by default (Light, Amber), with Spool's seven colour themes tinting the whole panel, and Porcelain as the alternative; each in Light, Dark or Automatic. Chosen in Settings (the gear).
 - The band cards offer Peak, Low shelf and High shelf. High-pass, low-pass and notch are no longer offered (they're rarely needed at home); presets that use them still load and play, and those bands show their type.
@@ -12,16 +22,6 @@ The new TAW look (first working build, for review).
 - The Equaliser draws its own title strip: drag it to move the window, double-click to maximise, and use its own minimise, maximise and close buttons. Settings has "Use the system title bar".
 - The family switcher starts the Library, Player or Analyser when they're installed.
 - The spectrum behind the curve draws in the display's own ink by default; the colour schemes are still in Settings.
-
-## 0.3.0 – 2026-10-13
-
-EQ Box is now **Timster's Audio Works Equaliser** (EQ-001), one of the family's hi-fi separates with the Library, Player and Analyser.
-
-- New name on the panel, window and program (`taw-equaliser`). On Linux the output is called "TAW Equaliser".
-- Windows engine: now `taw_equaliser_apo.dll` in `Program Files\Timster's Audio Works\Equaliser`, settings in `ProgramData\Timster's Audio Works\Equaliser`, event log source "TAW Equaliser".
-- **Coming from EQ Box:** save your EQ as a preset first (panel settings start fresh). Installing the engine sees an EQ Box engine and offers to remove it, putting every device back, then installs in its place. Remove also cleans up an EQ Box engine.
-- The SP-10 Spectrum Analyser is no longer included: it's now its own download, the TAW Analyser (TimsterAudio/TAW-Analyser).
-- The panel, spectrum drawing and analyser now come from the shared TAW-Panel crate. Nothing looks or behaves differently.
 
 ## 0.2.0 – 2026-10-11
 

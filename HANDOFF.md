@@ -4,12 +4,9 @@ Written 2026-10-14 when the family's work moved from one shared chat to a chat p
 
 ## Where it stands
 
-- `main` is 0.2.0 (still named EQ Box in places, Jupiter panel).
-- Branch `claude/focused-ritchie-veg4m9`, unmerged, carries two things:
-  1. **The 0.3.0 rename** (EQ Box → TAW Equaliser): commits `135eb21` and `cf8becc`. The Windows engine moves to `Timster's Audio Works\Equaliser`; the install script removes an EQ Box engine first. Checked under Wine and pwsh here, **not yet tested on real Windows**: the user is to test the EQ Box → TAW Equaliser switch.
-  2. **The new TAW look** (`949d087`, `2089e28`): Spool finish by default (Light, Amber), Porcelain alternative; no system title bar (own window buttons, drag, resize; "Use the system title bar" in Settings); Simple view with five tone sliders; ten band cards; audio setup in the Settings drawer; family switcher. Band types offered: Peak, Low shelf, High shelf (HP/LP/notch still load from presets and play).
-- Both are in CHANGELOG under Unreleased / 0.3.0. Merging the branch ships both together. If the user wants 0.3.0 released on its own first, split the look onto another branch (ask before pushing to a new branch name).
-- TAW-Panel is pinned at `ce561c2` (an unreleased commit on TAW-Panel's branch, with the `hifi` module). Before a release, TAW-Panel needs its 0.3.0 version recorded and this pin moved to that commit.
+- **0.3.0 released on 2026-10-14** (merged to `main`; release.yml publishes `v0.3.0`). It carries both the rename (EQ Box → TAW Equaliser; engine moves to `Timster's Audio Works\Equaliser`, install removes an EQ Box engine first) and the new TAW look (Spool Light Amber default, Porcelain alternative; own window buttons; Simple view with five tone sliders; ten band cards; audio setup in Settings; family switcher; Peak / Low shelf / High shelf offered, HP/LP/notch still load and play).
+- TAW-Panel pinned at its 0.3.0 commit `1b8162d`.
+- Checked here: all checks, the panel under Xvfb, and the APO harness under Wine (PASS). **Not yet tested on real Windows**, in particular the install script's EQ Box → TAW Equaliser switch. Fixes from the user's Windows test go in a 0.3.x.
 
 ## User feedback still open
 
@@ -24,9 +21,9 @@ Written 2026-10-14 when the family's work moved from one shared chat to a chat p
 
 ## Next
 
-1. The user's Windows test of 0.3.0; then merge and release (release.yml publishes on merge to `main`).
-2. Feedback on the new look; screenshots in Spool and Porcelain, light and dark.
+1. The user's Windows test of 0.3.0 (engine install, the switch from an EQ Box engine, removal).
+2. Feedback on the new look.
 
 ## EQ Box lives on separately
 
-On 2026-10-14 EQ Box got its own repository again (TimsterAudio/EQ-Box, restored from 0.2.0) as the Box family's equaliser. It registers the **same Windows engine CLSID** as TAW Equaliser, so only one engine can be installed at a time. This repo's install script already offers to remove an EQ Box engine first; keep that.
+On 2026-10-14 EQ Box got its own repository again (TimsterAudio/EQ-Box, restored from 0.2.0) as the Box family's equaliser. It registers the **same Windows engine CLSID** as TAW Equaliser, so only one engine can be installed at a time. This repo's install script offers to remove an EQ Box engine first; keep that. EQ Box 0.2.1 in turn refuses to install over, or remove, TAW Equaliser's engine.
