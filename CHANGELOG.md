@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- README: new screenshots of the 0.3.0 look (Detailed, Simple, Porcelain Dark and Settings), and its instructions now use the On switch, the band type menus and Settings.
+
 ## 0.3.0 – 2026-10-14
 
 EQ Box is now **Timster's Audio Works Equaliser** (EQ-001), one of the family's hi-fi separates with the Library, Player and Analyser.
