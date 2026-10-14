@@ -2,7 +2,11 @@
 
 **Timster's Audio Works – Equaliser (EQ-001) v0.3.0**: a native ten-band parametric equaliser for Windows and Linux. One of the family's hi-fi separates, with the Library, Player and Analyser, in their shared TAW look (Spool or Porcelain, light or dark). It was called EQ Box until 0.3.0.
 
-![The Equaliser with an AutoEQ preset loaded and pink noise playing](docs/screenshot.png)
+![The Equaliser in its Detailed view (Spool, Light, Amber) with a headphone preset loaded and pink noise playing](docs/screenshot.png)
+
+| Simple | Porcelain, Dark | Settings |
+|---|---|---|
+| ![Simple view: five tone sliders, Bass to Treble](docs/screenshot-simple.png) | ![The Porcelain finish in Dark](docs/screenshot-porcelain-dark.png) | ![The Settings drawer: audio, spectrum, look and window](docs/screenshot-settings.png) |
 
 It's a real desktop program written in Rust (egui for the panel). It isn't an HTML page in a browser.
 
@@ -15,34 +19,36 @@ Get the latest version from the [Releases page](https://github.com/TimsterAudio/
 
 ## What it does
 
-- **10 bands.** Each band can be a **peak** (bell), **low shelf**, **high shelf**, **high-pass**, **low-pass** or **notch** filter, with its own On key that lights up green.
-- **Gain from +12 dB to −24 dB**, frequency from 20 Hz to 20 kHz, and **Q from 0.1 to 20**, plus a **preamp** (+12 / −24 dB) with **Auto** (keeps the response's peak at 0 dB so nothing clips) and a **bypass** for A/B checks.
+- **10 bands.** Each band is a **peak** (bell), **low shelf** or **high shelf**, with its own on switch. Presets with **high-pass**, **low-pass** or **notch** filters still load and play, and those bands show their type.
+- **Simple or Detailed.** Simple has five tone sliders (Bass, Low mid, Mid, High mid, Treble) and the preset. Detailed has all ten band cards, the preamp and the meters.
+- **Gain from +12 dB to −24 dB**, frequency from 20 Hz to 20 kHz, and **Q from 0.1 to 20**, plus a **preamp** (+12 / −24 dB) with **Auto** (keeps the response's peak at 0 dB so nothing clips) and **Bypass** for A/B checks.
 - **Loads APO-format EQ presets**, such as AutoEQ's `ParametricEQ.txt` files. It reads `Preamp:` and `Filter:` lines with the `PK`, `LS`/`LSC`, `HS`/`HSC`, `HP`/`HPQ`, `LP`/`LPQ` and `NO` types, `Fc`, `Gain`, `Q` or `BW Oct`, and `ON`/`OFF`. It **saves** presets in the same format.
-- **Response graph:** each band's curve in its own colour, the overall response in red over them, and a live **spectrum analyser** of the output behind both, in a choice of colours. Drag a band's point to set its frequency and gain, and scroll over it to change Q.
+- **Response graph:** each band's curve in its own colour, the overall response over them in the display's ink, and a live **spectrum analyser** of the output behind both, in the display's ink or a choice of colour schemes. Drag a band's point to set its frequency and gain, and scroll over it to change Q.
 - **Audio systems:**
   - **Windows:** a **system-wide engine** (test build) that runs inside Windows' own audio engine and equalises every app with no virtual cable, plus **WASAPI** and **ASIO** (an optional build feature).
   - **Linux:** a **native PipeWire sink**. The Equaliser shows up as an output called "TAW Equaliser", so any app can play into it. It also has PipeWire and ALSA device modes.
 - **The spectrum analyser on its own** is now a separate download: the [TAW Analyser](https://github.com/TimsterAudio/TAW-Analyser) (formerly SP-10).
-- **Remembers everything:** bands, preset name, devices, look, Simple or Detailed, and whether audio was running.
+- **Looks:** the TAW finishes, Spool (with its seven colour themes) or Porcelain, each in Light, Dark or Automatic, chosen in **Settings** (the gear). The Equaliser draws its own title strip and window buttons; Settings can bring back the system title bar.
+- **Remembers everything:** bands, preset name, devices, look, Simple or Detailed, and whether audio was on.
 
 ## Using it
 
 ### Linux (PipeWire)
 
-1. Start the Equaliser, leave **System** on **PipeWire sink**, and press **Run / Stop**.
-2. In your desktop's sound settings, choose **The Equaliser** as the output. You can also route a single app to it with `pavucontrol`, `qpwgraph` or Helvum.
-3. The Equaliser sends the equalised audio to **Output**: the default device, or one you pick.
+1. Start the Equaliser and turn on the **On** switch. **System** (in Settings, the gear) starts on **PipeWire sink**.
+2. In your desktop's sound settings, choose **TAW Equaliser** as the output. You can also route a single app to it with `pavucontrol`, `qpwgraph` or Helvum.
+3. The Equaliser sends the equalised audio to **Output** (in Settings): the default device, or one you pick.
 
 The Equaliser never routes its own output back into itself, even when it is the default output, because the sink and its output share a PipeWire link group. To make it the default from a terminal, find the Equaliser's id in `wpctl status`, then run `wpctl set-default <id>`.
 
-If you'd rather equalise a capture device, choose **PipeWire devices** or **ALSA** and pick an **Input** and an **Output**.
+If you'd rather equalise a capture device, choose **PipeWire devices** or **ALSA** in Settings and pick an **Input** and an **Output**.
 
 ### Windows (system-wide, test build)
 
 The Equaliser's engine can run inside Windows' own audio engine, so every app on an output is equalised with no extra software. The Windows download has a `system-wide-engine` folder:
 
-1. In the Equaliser, set **System** to **Windows (system-wide)** and press **Install** (or double-click `Install system-wide engine.cmd`). Allow Windows' permission prompt, then pick your output.
-2. Press **Run / Stop**. Your settings go straight to the engine and stay set after the Equaliser closes.
+1. In the Equaliser's Settings (the gear), set **System** to **Windows (system-wide)** and press **Install engine** (or double-click `Install system-wide engine.cmd`). Allow Windows' permission prompt, then pick your output.
+2. Turn on the **On** switch. Your settings go straight to the engine and stay set after the Equaliser closes.
 3. **Remove** (or `Remove system-wide engine.cmd`) puts every device back exactly as it was.
 
 If the output already has its own effect from its driver, the Equaliser keeps it and runs it after the EQ.
@@ -54,25 +60,25 @@ Apps using exclusive mode or ASIO bypass it, as they do with other EQ software. 
 Without the system-wide engine, route your audio through a virtual cable:
 
 1. Install a virtual cable, such as [VB-CABLE](https://vb-audio.com/Cable/), and set **CABLE Input** as Windows' default output.
-2. In the Equaliser, set **System** to **WASAPI**, **Input** to **CABLE Output**, and **Output** to your real speakers or headphones.
-3. Press **Run / Stop**.
+2. In the Equaliser's Settings, set **System** to **WASAPI**, **Input** to **CABLE Output**, and **Output** to your real speakers or headphones.
+3. Turn on the **On** switch.
 
 The two devices must run at the same sample rate, which you set under *Sound settings › device › Advanced*. **Buffer** sets the cushion between the input and the output. If you hear crackles, raise it. If you need less delay, lower it.
 
 ### Windows (ASIO)
 
-In an ASIO build, choose **ASIO** under **System**, then pick your interface as both **Input** and **Output**. Send the signal you want equalised into the interface's inputs, for example through a loopback or virtual channel in its mixer software. The Equaliser plays the result to the interface's outputs.
+In an ASIO build, choose **ASIO** under **System** in Settings, then pick your interface as both **Input** and **Output**. Send the signal you want equalised into the interface's inputs, for example through a loopback or virtual channel in its mixer software. The Equaliser plays the result to the interface's outputs.
 
 ### Controls
 
 | | |
 |---|---|
-| Knobs and faders | Drag up or down (or left/right). Hold **Shift** for fine control. Scroll to step. Double-click to reset. With a control focused, the arrow keys, Page Up/Down and Home/End adjust it. |
+| Knobs and faders | Drag up or down (or left/right). Hold **Shift** for fine control. Scroll to step. Double-click to reset. With a control focused, the arrow keys adjust it (**Shift** for fine). |
 | Graph points | Drag to set frequency and gain (**Shift** for fine). Scroll for Q. Double-click for 0 dB. Right-click to switch the band on or off. |
-| Filter type | Each band's **Type** knob steps clockwise through LPF, LO SH, PEAK, HI SH, HPF and NOTCH; the readout under it shows the choice. High-pass, low-pass and notch have no gain, so the band's gain readout shows `--`. |
+| Filter type | Each band card's menu: **Peak**, **Low shelf** or **High shelf**. A band loaded from a preset as high-pass, low-pass or notch shows that type; those have no gain, so the card says "No gain, fixed slope" instead of a fader. |
 | Preamp | **Auto** keeps the response's highest point at 0 dB as you change the bands. Turning the knob takes over again. |
 | Keys | **Space**: bypass · **Ctrl+O**: load preset · **Ctrl+S**: save preset |
-| Presets | **Load** / **Save** keys, drop a preset file on the window, or pass one on the command line: `taw-equaliser "HD 600 ParametricEQ.txt"`. |
+| Presets | **Load…** / **Save…** buttons, drop a preset file on the window, or pass one on the command line: `taw-equaliser "HD 600 ParametricEQ.txt"`. |
 | Flat / Reset | **Flat** sets every gain and the preamp to 0 dB. **Reset** also restores the default band layout. |
 
 When a preset has more than ten filters, the Equaliser loads the first ten. It skips filter types it doesn't have (such as band-pass or all-pass), and limits values that are outside the panel's ranges. The footer lists anything it changed.

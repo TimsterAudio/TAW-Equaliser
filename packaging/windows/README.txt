@@ -12,8 +12,9 @@ COMING FROM EQ BOX
   engine goes in its place. Load your preset in TAW Equaliser afterwards.
 
 INSTALL
-  1. Either press Install in TAW Equaliser (System: "Windows (system-wide)"),
-     or double-click "Install system-wide engine.cmd" in this folder.
+  1. Either press Install engine in TAW Equaliser's Settings (System:
+     "Windows (system-wide)"), or double-click
+     "Install system-wide engine.cmd" in this folder.
   2. Allow Windows' permission prompt.
   3. Pick your output from the list. Windows audio restarts (a second of
      silence). Run it again (Add in the app) to put the Equaliser on
@@ -25,8 +26,9 @@ INSTALL
      original owner and permissions are saved and put back on removal.
 
 USE
-  Open taw-equaliser.exe, set System to "Windows (system-wide)", and press
-  Run / Stop. Play music in any app on that output and move the EQ.
+  Open taw-equaliser.exe, set System to "Windows (system-wide)" in Settings
+  (the gear), and turn on the On switch. Play music in any app on that
+  output and move the EQ.
   The EQ stays set after the app closes. Use Bypass to switch it off.
 
 REMOVE
