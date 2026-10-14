@@ -24,6 +24,12 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The panel is laid out at this size and scaled to fit the window.
 pub const DESIGN: Vec2 = Vec2::new(1280.0, 812.0);
 const STORAGE_KEY: &str = "taw-equaliser";
+/// The filter types the band cards offer.
+const PANEL_KINDS: [FilterKind; 3] = [
+    FilterKind::Peak,
+    FilterKind::LowShelf,
+    FilterKind::HighShelf,
+];
 /// Simple view's tone sliders, and the band each one moves.
 const TONE: [(&str, usize); 5] = [
     ("Bass", 1),
@@ -830,7 +836,11 @@ impl EqApp {
         let mut b = self.s.bands[i];
         let before = b;
         let mut touched: Option<(&str, String)> = None;
-        let mut interacted = false;
+        // Clicking anywhere on the card selects its band. Registered before
+        // the card's controls, so they still get their own clicks.
+        let mut interacted = ui
+            .interact(r, Id::new(("card", i)), egui::Sense::click())
+            .clicked();
         {
             let p = ui.painter();
             hifi::well(p, r, t);
@@ -872,16 +882,17 @@ impl EqApp {
             Pos2::new(r.left() + 8.0, r.top() + 36.0),
             Vec2::new(r.width() - 16.0, 26.0),
         );
-        let names: Vec<String> = FilterKind::ALL
-            .iter()
-            .map(|k| kind_name(*k).to_string())
-            .collect();
-        let cur = FilterKind::ALL
-            .iter()
-            .position(|k| *k == b.kind)
-            .unwrap_or(0);
+        // Peak and shelves only: high-pass, low-pass and notch aren't needed
+        // in most home setups. A band loaded from a preset with one of
+        // those keeps it, and it's listed so the menu shows it.
+        let mut kinds = PANEL_KINDS.to_vec();
+        if !kinds.contains(&b.kind) {
+            kinds.push(b.kind);
+        }
+        let names: Vec<String> = kinds.iter().map(|k| kind_name(*k).to_string()).collect();
+        let cur = kinds.iter().position(|k| *k == b.kind).unwrap_or(0);
         if let Some(k) = hifi::select(ui, tr, &format!("type-{i}"), t, &names, cur) {
-            b.kind = FilterKind::ALL[k];
+            b.kind = kinds[k];
             touched = Some(("Type", kind_name(b.kind).to_string()));
             interacted = true;
         }
@@ -961,13 +972,6 @@ impl EqApp {
             touched = Some(("Q", format!("{:.2}", b.q)));
         }
 
-        // Clicking anywhere on the card selects its band.
-        if ui
-            .interact(r, Id::new(("card", i)), egui::Sense::click())
-            .clicked()
-        {
-            interacted = true;
-        }
         if interacted || touched.is_some() {
             self.s.selected = i;
         }
