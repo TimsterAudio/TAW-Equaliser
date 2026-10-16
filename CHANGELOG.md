@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.3.1 – 2026-10-16
+
+From the first test of 0.3.0, and the family's tighter look.
+
 - **The spectrum no longer flickers.** It and its dB scale on the right blinked off whenever a screen refresh came between two blocks of audio, and vanished altogether on Windows' system-wide engine while nothing played. They now stay up the whole time audio is on, and the spectrum falls away when the sound stops.
 - **Auto preamp is on by default**, so a boost can't clip (turned on once for settings saved by 0.3.0). **Simple always uses Auto**: it worked out the preamp only in Detailed before, so Simple's tone sliders could overload. Turn Auto off in Detailed.
 - **Auto preamp is gentler.** It cut the level by the full height of any boost, wherever it was, so +6 dB at 16 kHz cost 6 dB everywhere. Music carries far less in the treble, so it now allows for that headroom: +6 dB at 16 kHz needs no cut, +12 dB there needs 3 dB, and +6 dB at 4 kHz about 3 dB; boosts in the bass and mids are cut in full as before. It still only follows the bands, never the music, and now settles when you let go of the mouse rather than at every step of a drag.

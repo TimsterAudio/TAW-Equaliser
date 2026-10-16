@@ -5,7 +5,7 @@ Written 2026-10-14 when the family's work moved from one shared chat to a chat p
 ## Where it stands
 
 - **0.3.0 released on 2026-10-14** (merged to `main`; release.yml publishes `v0.3.0`). It carries both the rename (EQ Box → TAW Equaliser; engine moves to `Timster's Audio Works\Equaliser`, install removes an EQ Box engine first) and the new TAW look (Spool Light Amber default, Porcelain alternative; own window buttons; Simple view with five tone sliders; ten band cards; audio setup in Settings; family switcher; Peak / Low shelf / High shelf offered, HP/LP/notch still load and play).
-- TAW-Panel pinned at its 0.4.0 commit `d030ffd` (the Player's pin) from 2026-10-16, on branch `claude/taw-equaliser-0-3-0-s93tgl`, not yet merged or released.
+- **0.3.1 released on 2026-10-16** (merged to `main`): the fixes from the user's first test of 0.3.0, below. TAW-Panel pinned at its 0.4.0 commit `d030ffd` (the Player's pin).
 - Checked here: all checks, the panel under Xvfb, and the APO harness under Wine (PASS). **Not yet tested on real Windows**, in particular the install script's EQ Box → TAW Equaliser switch. Fixes from the user's Windows test go in a 0.3.x.
 
 ## 2026-10-16: the user's first test of 0.3.0, and what was done
@@ -35,9 +35,10 @@ Also with the 0.4.0 pin: the shorter nameplate (no EQUALISER), the top band at t
 
 ## Next
 
-1. The user's review of the branch, then 0.3.1 (merge to release).
+1. The user's test of 0.3.1: the gentler Auto preamp, Simple's graph, the spectrum, the corners.
 2. The user's Windows test of the engine (install, the switch from an EQ Box engine, removal), still to come.
 3. Their choice on making the output connection obvious.
+4. Simple's tone controls at 40 Hz, 160 Hz, 625 Hz, 2.5 kHz and 10 kHz (ROADMAP, 0.3.x): settle how Simple's bands relate to Detailed's first.
 
 ## EQ Box lives on separately
 
