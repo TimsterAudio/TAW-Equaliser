@@ -4,6 +4,8 @@
 
 - **The spectrum no longer flickers.** It and its dB scale on the right blinked off whenever a screen refresh came between two blocks of audio, and vanished altogether on Windows' system-wide engine while nothing played. They now stay up the whole time audio is on, and the spectrum falls away when the sound stops.
 - **Auto preamp is on by default**, so a boost can't clip (turned on once for settings saved by 0.3.0). **Simple always uses Auto**: it worked out the preamp only in Detailed before, so Simple's tone sliders could overload. Turn Auto off in Detailed.
+- **Auto preamp is gentler.** It cut the level by the full height of any boost, wherever it was, so +6 dB at 16 kHz cost 6 dB everywhere. Music carries far less in the treble, so it now allows for that headroom: +6 dB at 16 kHz needs no cut, +12 dB there needs 3 dB, and +6 dB at 4 kHz about 3 dB; boosts in the bass and mids are cut in full as before. It still only follows the bands, never the music, and now settles when you let go of the mouse rather than at every step of a drag.
+- **Simple's graph shows only its five tone controls**, named B, LM, M, HM and T, which move up and down; the total curve still includes every band. Its spectrum is smoothed and moves more calmly.
 - **The window resizes from its bottom corners** too, and every time (TAW-Panel 0.3.2).
 - The family's tighter look (TAW-Panel 0.4.0): the nameplate is the badge and model line without the big EQUALISER, the top band is shorter (the graph gets the room), corners are tighter, and the chosen half of Simple / Detailed stands out.
 - **Meter colours** in Settings: Classic (green, yellow, red) or Display (the display's ink). Settings' spectrum options are now under **Display**.

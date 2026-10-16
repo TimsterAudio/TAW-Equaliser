@@ -826,6 +826,7 @@ impl EqApp {
             rate,
             (self.s.analyser && self.running.is_some()).then_some(&self.analyzer),
             style,
+            self.s.simple.then_some(&TONE[..]),
             t,
         );
         if let Some(i) = res.changed {
@@ -1411,6 +1412,9 @@ impl eframe::App for EqApp {
         let dt = ui.input(|i| i.stable_dt).min(0.1);
         self.update_meters(dt);
         if self.s.analyser {
+            // Simple's spectrum moves more calmly.
+            self.analyzer.ballistics.rise_ms = if self.s.simple { 120.0 } else { 0.0 };
+            self.analyzer.ballistics.fall_ms = if self.s.simple { 700.0 } else { 215.0 };
             self.analyzer.update();
             // `active` only says whether samples came in since the last
             // frame, and audio comes in blocks that can be longer than a
@@ -1492,12 +1496,14 @@ impl eframe::App for EqApp {
         }
 
         // Simple has no preamp control, so Auto always looks after it there;
-        // only Detailed can turn Auto off. Worked out last, so the audio
-        // never gets this frame's bands with last frame's preamp.
+        // only Detailed can turn Auto off. It settles when the mouse button
+        // is let go, so a boost is heard while it's dragged rather than
+        // cancelled out step by step, and isn't worked out on every frame
+        // of a drag.
         if self.s.simple {
             self.s.auto_preamp = true;
         }
-        if self.s.auto_preamp {
+        if self.s.auto_preamp && !ui.input(|i| i.pointer.any_down()) {
             self.s.preamp_db = auto_preamp_db(&self.s.bands, 48_000.0);
         }
         self.shared.store(&self.settings());

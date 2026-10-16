@@ -16,6 +16,8 @@ Passed: Bypass, settings kept after a restart, the Simple sliders. Feedback, and
 - **README out of date (LPF, HPF, notch).** Already fixed on `main` by PR #3; the test used the old README.
 - **Auto preamp on by default, and always on in Simple.** Done: `Saved::auto_preamp` defaults to true, and the new `settings_version` turns it on once for 0.3.0 settings. Simple forces Auto on (only Detailed can turn it off); Auto is now worked out each frame just before the settings reach the audio, which also fixes Simple, where it was never worked out at all.
 - **Bottom corners don't resize.** Fixed by TAW-Panel 0.3.2 (in the 0.4.0 pin).
+- **Auto preamp too aggressive** (second round, same day): it cut by the full height of any boost, even +6 dB at 16 kHz. Now `auto_preamp_db` allows the treble's headroom (`headroom_allowance_db`: 0 to 2 kHz, +3 dB an octave, 9 dB at 16 kHz) when cutting; lifts stay exact; it settles on mouse release. If the user wants it stricter or looser, the allowance curve is the one knob.
+- **Simple's graph showed all ten bands:** now only the five tone bands (B, LM, M, HM, T; gain only, ±12 dB), with a smoothed, slower spectrum.
 - **Connecting to the right outputs isn't obvious.** Not built yet: options put to the user (see ROADMAP 0.4.0 / 0.5.0); waiting on their choice.
 
 Also with the 0.4.0 pin: the shorter nameplate (no EQUALISER), the top band at the Player's height (plate 66, key row 46; the controls row and graph move up 28 and the graph gets the room), Meter colours in Settings (a new `Display` section), and new README screenshots.
