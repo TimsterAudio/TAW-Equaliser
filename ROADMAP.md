@@ -20,6 +20,9 @@ Carried over from the EQ Box plan on branch `claude/roadmap-pipeline` (2026-10-1
 - [ ] The engine survives a reboot and a Windows update; Remove always puts the device back
 - [ ] Settle whether Windows' loopback capture includes the EQ (it decides where the analyser behind the curve gets its feed)
 
+- [x] From the first test (2026-10-16): the spectrum no longer flickers or vanishes; Auto preamp on by default and always on in Simple; corner resizing (TAW-Panel 0.3.2); the family's 0.4.0 look and meter colours *(branch, for 0.3.1)*
+- [ ] Make connecting to the right output obvious (user feedback, 2026-10-16): the first steps of 0.4.0's setup window, or Linux's **Make it my output** from 0.5.0, brought forward if the user chooses
+
 *Exit check:* no machine ends up without sound, and Remove restores every device exactly.
 
 ### 0.4.0: easy enough for anyone, part 1

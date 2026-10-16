@@ -6,7 +6,7 @@
 
 | Simple | Porcelain, Dark | Settings |
 |---|---|---|
-| ![Simple view: five tone sliders, Bass to Treble](docs/screenshot-simple.png) | ![The Porcelain finish in Dark](docs/screenshot-porcelain-dark.png) | ![The Settings drawer: audio, spectrum, look and window](docs/screenshot-settings.png) |
+| ![Simple view: five tone sliders, Bass to Treble](docs/screenshot-simple.png) | ![The Porcelain finish in Dark](docs/screenshot-porcelain-dark.png) | ![The Settings drawer: audio, display, look and window](docs/screenshot-settings.png) |
 
 It's a real desktop program written in Rust (egui for the panel). It isn't an HTML page in a browser.
 
@@ -21,7 +21,7 @@ Get the latest version from the [Releases page](https://github.com/TimsterAudio/
 
 - **10 bands.** Each band is a **peak** (bell), **low shelf** or **high shelf**, with its own on switch. Presets with **high-pass**, **low-pass** or **notch** filters still load and play, and those bands show their type.
 - **Simple or Detailed.** Simple has five tone sliders (Bass, Low mid, Mid, High mid, Treble) and the preset. Detailed has all ten band cards, the preamp and the meters.
-- **Gain from +12 dB to −24 dB**, frequency from 20 Hz to 20 kHz, and **Q from 0.1 to 20**, plus a **preamp** (+12 / −24 dB) with **Auto** (keeps the response's peak at 0 dB so nothing clips) and **Bypass** for A/B checks.
+- **Gain from +12 dB to −24 dB**, frequency from 20 Hz to 20 kHz, and **Q from 0.1 to 20**, plus a **preamp** (+12 / −24 dB) with **Auto** (on by default: it keeps the response's peak at 0 dB so nothing clips, and is always on in Simple) and **Bypass** for A/B checks.
 - **Loads APO-format EQ presets**, such as AutoEQ's `ParametricEQ.txt` files. It reads `Preamp:` and `Filter:` lines with the `PK`, `LS`/`LSC`, `HS`/`HSC`, `HP`/`HPQ`, `LP`/`LPQ` and `NO` types, `Fc`, `Gain`, `Q` or `BW Oct`, and `ON`/`OFF`. It **saves** presets in the same format.
 - **Response graph:** each band's curve in its own colour, the overall response over them in the display's ink, and a live **spectrum analyser** of the output behind both, in the display's ink or a choice of colour schemes. Drag a band's point to set its frequency and gain, and scroll over it to change Q.
 - **Audio systems:**
@@ -76,7 +76,7 @@ In an ASIO build, choose **ASIO** under **System** in Settings, then pick your i
 | Knobs and faders | Drag up or down (or left/right). Hold **Shift** for fine control. Scroll to step. Double-click to reset. With a control focused, the arrow keys adjust it (**Shift** for fine). |
 | Graph points | Drag to set frequency and gain (**Shift** for fine). Scroll for Q. Double-click for 0 dB. Right-click to switch the band on or off. |
 | Filter type | Each band card's menu: **Peak**, **Low shelf** or **High shelf**. A band loaded from a preset as high-pass, low-pass or notch shows that type; those have no gain, so the card says "No gain, fixed slope" instead of a fader. |
-| Preamp | **Auto** keeps the response's highest point at 0 dB as you change the bands. Turning the knob takes over again. |
+| Preamp | **Auto** (on by default) keeps the response's highest point at 0 dB as you change the bands. Moving the preamp slider takes over from it. Simple always uses Auto; turn it off in Detailed. |
 | Keys | **Space**: bypass · **Ctrl+O**: load preset · **Ctrl+S**: save preset |
 | Presets | **Load…** / **Save…** buttons, drop a preset file on the window, or pass one on the command line: `taw-equaliser "HD 600 ParametricEQ.txt"`. |
 | Flat / Reset | **Flat** sets every gain and the preamp to 0 dB. **Reset** also restores the default band layout. |

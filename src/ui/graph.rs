@@ -177,7 +177,7 @@ pub fn graph(
     }
 
     // Analyser, behind everything else.
-    if let Some(an) = analyzer.filter(|a| a.active) {
+    if let Some(an) = analyzer {
         let mut x = plot.left();
         let mut pts = Vec::new();
         let mut levels = Vec::new();
@@ -189,7 +189,10 @@ pub fn graph(
             levels.push(((db - SPEC_BOTTOM) / (SPEC_TOP - SPEC_BOTTOM)).clamp(0.0, 1.0));
             x += 2.0;
         }
+        // Nothing to draw in silence but a line along the floor.
+        let heard = levels.iter().any(|&l| l > 0.0);
         match analyser_style {
+            _ if !heard => {}
             Some(style) => spectrum::draw(
                 &p,
                 &pts,
