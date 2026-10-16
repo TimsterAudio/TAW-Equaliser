@@ -23,6 +23,14 @@ use taw_panel::hifi::{self, Seg, Tokens};
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The panel is laid out at this size and scaled to fit the window.
 pub const DESIGN: Vec2 = Vec2::new(1280.0, 812.0);
+/// The nameplate strip (drag it to move the window), as in the Player.
+const PLATE_H: f32 = 66.0;
+/// The middle of the nameplate's row of keys, just under the window buttons.
+const ROW_Y: f32 = 46.0;
+/// The middle of the On switch, preset, preamp and meters row.
+const CONTROLS_Y: f32 = 100.0;
+/// The top of the response graph.
+const GRAPH_TOP: f32 = 134.0;
 const STORAGE_KEY: &str = "taw-equaliser";
 /// The filter types the band cards offer.
 const PANEL_KINDS: [FilterKind; 3] = [
@@ -75,6 +83,11 @@ struct Saved {
     analyser_ink: bool,
     /// Where the user pointed the Equaliser to family apps it couldn't find.
     family: std::collections::HashMap<String, PathBuf>,
+    /// The In and Out meters: classic LED colours or the display's ink.
+    meter_colours: hifi::MeterColours,
+    /// Bumped when a default changes for everyone: 1 (0.3.1) turns Auto
+    /// preamp on once for settings saved by 0.3.0.
+    settings_version: u32,
 }
 
 impl Default for Saved {
@@ -82,7 +95,7 @@ impl Default for Saved {
         Saved {
             bands: default_bands(),
             preamp_db: 0.0,
-            auto_preamp: false,
+            auto_preamp: true,
             bypass: false,
             preset_name: "Flat".into(),
             backend: None,
@@ -102,6 +115,8 @@ impl Default for Saved {
             system_title_bar: false,
             analyser_ink: true,
             family: Default::default(),
+            meter_colours: hifi::MeterColours::Classic,
+            settings_version: 0,
         }
     }
 }
@@ -169,6 +184,15 @@ fn fmt_hz(v: f32) -> String {
     }
 }
 
+/// Brings settings saved by an older version up to date.
+fn upgrade(s: &mut Saved) {
+    if s.settings_version < 1 {
+        // Auto preamp is on by default from 0.3.1, so nothing clips.
+        s.auto_preamp = true;
+        s.settings_version = 1;
+    }
+}
+
 /// A frequency short enough for a knob: "105", "3.2k".
 fn short_hz(v: f32) -> String {
     fmt_freq(v).replace('K', "k")
@@ -179,6 +203,8 @@ pub struct EqApp {
     shared: Arc<Shared>,
     running: Option<Running>,
     analyzer: Analyzer,
+    /// When the analyser last had samples (see `now`).
+    analyser_fed: f64,
     backends: Vec<BackendInfo>,
     devices: DeviceLists,
     device_error: Option<String>,
@@ -205,6 +231,7 @@ impl EqApp {
             .unwrap_or_default();
         s.bands = s.bands.map(|b| b.clamped());
         s.selected = s.selected.min(NUM_BANDS - 1);
+        upgrade(&mut s);
         let settings = EqSettings {
             bands: s.bands,
             preamp_db: s.preamp_db,
@@ -227,6 +254,7 @@ impl EqApp {
             s,
             running: None,
             analyzer: Analyzer::default(),
+            analyser_fed: f64::NEG_INFINITY,
             backends,
             devices: DeviceLists::default(),
             device_error: None,
@@ -528,22 +556,22 @@ impl EqApp {
     // ------------------------------------------------------------ top
 
     fn plate(&mut self, ui: &mut Ui, screen: Rect, o: Vec2, t: &Tokens) {
-        let plate = Rect::from_min_size(screen.min, Vec2::new(screen.width(), 96.0 + o.y));
+        let plate = Rect::from_min_size(screen.min, Vec2::new(screen.width(), PLATE_H + o.y));
         if !self.s.system_title_bar {
             hifi::drag_to_move(ui, plate);
         }
         hifi::nameplate(
             ui,
-            Pos2::new(24.0, 14.0) + o,
+            Pos2::new(24.0, 10.0) + o,
             t,
             "Equaliser",
             &format!("EQ-001 · Ten band parametric equaliser · V{VERSION}"),
         );
         if !self.s.system_title_bar {
-            hifi::window_buttons(ui, Pos2::new(screen.right() - 10.0, screen.top() + 10.0), t);
+            hifi::window_buttons(ui, Pos2::new(screen.right() - 10.0, screen.top() + 6.0), t);
         }
         let right = o.x + DESIGN.x - 24.0;
-        let row = o.y + 66.0;
+        let row = o.y + ROW_Y;
         let gear = Rect::from_min_size(Pos2::new(right - 30.0, row - 15.0), Vec2::splat(30.0));
         if hifi::gear_button(ui, gear, Id::new("settings"), t, self.settings_open).clicked() {
             self.settings_open = !self.settings_open;
@@ -583,7 +611,7 @@ impl EqApp {
 
     /// The On switch and status, the preset, the preamp and the meters.
     fn controls_row(&mut self, ui: &mut Ui, o: Vec2, t: &Tokens) {
-        let y = o.y + 128.0;
+        let y = o.y + CONTROLS_Y;
         let x0 = o.x + 24.0;
         let lab = |ui: &Ui, x: f32, s: &str| {
             hifi::label(
@@ -710,9 +738,6 @@ impl EqApp {
         x += 14.0;
 
         // Preamp, and Auto, which keeps the response's peak at 0 dB.
-        if self.s.auto_preamp {
-            self.s.preamp_db = auto_preamp_db(&self.s.bands, 48_000.0);
-        }
         x = lab(ui, x, "Preamp").right() + 10.0;
         let mut pre = self.s.preamp_db;
         let sr = Rect::from_min_size(Pos2::new(x + 8.0, y - 8.0), Vec2::new(70.0, 16.0));
@@ -773,7 +798,7 @@ impl EqApp {
                     Pos2::new(right - mw, top + side as f32 * 7.0),
                     Vec2::new(mw, 5.0),
                 );
-                hifi::meter(p, r, t, self.peaks_db[k * 2 + side]);
+                hifi::meter_in(p, r, t, self.peaks_db[k * 2 + side], self.s.meter_colours);
             }
         }
     }
@@ -799,8 +824,9 @@ impl EqApp {
             &mut s,
             &mut self.s.selected,
             rate,
-            self.s.analyser.then_some(&self.analyzer),
+            (self.s.analyser && self.running.is_some()).then_some(&self.analyzer),
             style,
+            self.s.simple.then_some(&TONE[..]),
             t,
         );
         if let Some(i) = res.changed {
@@ -1104,6 +1130,7 @@ impl EqApp {
         let help = self.help_text();
         let engine = self.engine;
         let mut analyser = self.s.analyser;
+        let mut meter_colours = self.s.meter_colours;
         let mut colours = vec!["Display".to_string()];
         colours.extend(Scheme::ALL.iter().map(|s| title_case(s.name())));
         let colour_cur = if self.s.analyser_ink {
@@ -1207,19 +1234,39 @@ impl EqApp {
                     .color(if help.1 { t.warn } else { t.dim }),
             );
 
-            hifi::drawer_heading(ui, t, "Spectrum behind the curve");
-            let r = hifi::drawer_row(ui, t, "Show it", 32.0);
+            hifi::drawer_heading(ui, t, "Display");
+            let r = hifi::drawer_row(ui, t, "Spectrum behind the curve", 32.0);
             let sw = Rect::from_min_size(r.min + Vec2::new(0.0, 4.0), Vec2::new(32.0, 18.0));
             if hifi::switch(ui, sw, Id::new("analyser"), t, analyser).clicked() {
                 analyser = !analyser;
             }
-            let r = hifi::drawer_row(ui, t, "Colour", 160.0);
+            let r = hifi::drawer_row(ui, t, "Spectrum colour", 160.0);
             if let Some(i) = hifi::select(ui, r, "an-colour", t, &colours, colour_cur) {
                 actions.push(Action::Colour(i));
             }
-            let r = hifi::drawer_row(ui, t, "Style", 160.0);
+            let r = hifi::drawer_row(ui, t, "Spectrum style", 160.0);
             if let Some(i) = hifi::select(ui, r, "an-style", t, &styles, style_cur) {
                 actions.push(Action::Style(i));
+            }
+            let r = hifi::drawer_row(ui, t, "Meter colours", 150.0);
+            let names = hifi::MeterColours::ALL.map(|m| m.name());
+            let sel = hifi::MeterColours::ALL
+                .iter()
+                .position(|m| *m == meter_colours)
+                .unwrap_or(0);
+            if let (_, Some(i)) = hifi::segmented(
+                ui,
+                Pos2::new(r.right(), r.center().y),
+                true,
+                Id::new("meter-colours"),
+                t,
+                &names,
+                sel,
+                Seg::Plain,
+                &[],
+                &[],
+            ) {
+                meter_colours = hifi::MeterColours::ALL[i];
             }
 
             hifi::look_settings(ui, t, &mut look);
@@ -1234,6 +1281,7 @@ impl EqApp {
         self.settings_open = open;
         self.s.look = look;
         self.s.analyser = analyser;
+        self.s.meter_colours = meter_colours;
         if (latency - self.s.latency_ms).abs() > f32::EPSILON {
             self.s.latency_ms = latency;
             self.touch("Buffer", format!("{latency:.0} ms"));
@@ -1364,7 +1412,23 @@ impl eframe::App for EqApp {
         let dt = ui.input(|i| i.stable_dt).min(0.1);
         self.update_meters(dt);
         if self.s.analyser {
+            // Simple's spectrum moves more calmly.
+            self.analyzer.ballistics.rise_ms = if self.s.simple { 120.0 } else { 0.0 };
+            self.analyzer.ballistics.fall_ms = if self.s.simple { 700.0 } else { 215.0 };
             self.analyzer.update();
+            // `active` only says whether samples came in since the last
+            // frame, and audio comes in blocks that can be longer than a
+            // frame (and not at all from Windows' loopback while the output
+            // is silent). Keep the spectrum up while audio runs, and let it
+            // fall away when the sound stops rather than freeze or blink.
+            let t = now();
+            if self.analyzer.active {
+                self.analyser_fed = t;
+            } else if t - self.analyser_fed > 0.25 {
+                for b in &mut self.analyzer.bins_db {
+                    *b = (*b - 60.0 * dt).max(-140.0);
+                }
+            }
         }
         if self.running.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(16));
@@ -1404,7 +1468,7 @@ impl eframe::App for EqApp {
         self.controls_row(ui, o, &t);
         if self.s.simple {
             let g = Rect::from_min_max(
-                Pos2::new(24.0, 162.0) + o,
+                Pos2::new(24.0, GRAPH_TOP) + o,
                 Pos2::new(DESIGN.x - 24.0, 372.0) + o,
             );
             self.graph_area(ui, g, &t);
@@ -1415,7 +1479,7 @@ impl eframe::App for EqApp {
             self.tone(ui, area, &t);
         } else {
             let g = Rect::from_min_max(
-                Pos2::new(24.0, 162.0) + o,
+                Pos2::new(24.0, GRAPH_TOP) + o,
                 Pos2::new(DESIGN.x - 24.0, 402.0) + o,
             );
             self.graph_area(ui, g, &t);
@@ -1431,6 +1495,17 @@ impl eframe::App for EqApp {
             hifi::resize_edges(ui, screen);
         }
 
+        // Simple has no preamp control, so Auto always looks after it there;
+        // only Detailed can turn Auto off. It settles when the mouse button
+        // is let go, so a boost is heard while it's dragged rather than
+        // cancelled out step by step, and isn't worked out on every frame
+        // of a drag.
+        if self.s.simple {
+            self.s.auto_preamp = true;
+        }
+        if self.s.auto_preamp && !ui.input(|i| i.pointer.any_down()) {
+            self.s.preamp_db = auto_preamp_db(&self.s.bands, 48_000.0);
+        }
         self.shared.store(&self.settings());
     }
 
@@ -1461,6 +1536,23 @@ mod tests {
         assert_eq!(s.look, hifi::Look::default());
         assert!(s.analyser_ink);
         assert!(!s.simple);
+    }
+
+    #[test]
+    fn auto_preamp_comes_on_once() {
+        // 0.3.0 saved Auto off by default: 0.3.1 turns it on once...
+        let mut s: Saved =
+            serde_json::from_str(r#"{"auto_preamp": false, "preamp_db": -3.0}"#).unwrap();
+        upgrade(&mut s);
+        assert!(s.auto_preamp);
+        assert_eq!(s.meter_colours, hifi::MeterColours::Classic);
+        // ...and leaves it off after that, if the user turns it off.
+        s.auto_preamp = false;
+        let mut again: Saved = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+        upgrade(&mut again);
+        assert!(!again.auto_preamp);
+        // New settings start with it on.
+        assert!(Saved::default().auto_preamp);
     }
 
     #[test]

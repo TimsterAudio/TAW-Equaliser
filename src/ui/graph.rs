@@ -88,8 +88,12 @@ pub fn graph(
     sample_rate: f32,
     analyzer: Option<&Analyzer>,
     analyser_style: Option<spectrum::Style>,
+    // Simple view: only these bands (name, band) show and move, by gain
+    // alone, and the spectrum is smoothed.
+    tone: Option<&[(&str, usize)]>,
     t: &Tokens,
 ) -> GraphResult {
+    let shown = |i: usize| tone.is_none_or(|bands| bands.iter().any(|&(_, b)| b == i));
     let mut result = GraphResult { changed: None };
     hifi::display(ui.painter(), rect, t);
     let p = ui.painter().with_clip_rect(rect);
@@ -177,7 +181,7 @@ pub fn graph(
     }
 
     // Analyser, behind everything else.
-    if let Some(an) = analyzer.filter(|a| a.active) {
+    if let Some(an) = analyzer {
         let mut x = plot.left();
         let mut pts = Vec::new();
         let mut levels = Vec::new();
@@ -189,7 +193,22 @@ pub fn graph(
             levels.push(((db - SPEC_BOTTOM) / (SPEC_TOP - SPEC_BOTTOM)).clamp(0.0, 1.0));
             x += 2.0;
         }
+        if tone.is_some() {
+            // A third of an octave either side, so it reads as a shape.
+            let half = (plot.width() / (FREQ_MAX / FREQ_MIN).log2() / 3.0 / 2.0) as usize;
+            let raw: Vec<f32> = pts.iter().map(|p| p.y).collect();
+            let raw_levels = levels.clone();
+            for i in 0..pts.len() {
+                let (a, b) = (i.saturating_sub(half), (i + half + 1).min(pts.len()));
+                let n = (b - a) as f32;
+                pts[i].y = raw[a..b].iter().sum::<f32>() / n;
+                levels[i] = raw_levels[a..b].iter().sum::<f32>() / n;
+            }
+        }
+        // Nothing to draw in silence but a line along the floor.
+        let heard = levels.iter().any(|&l| l > 0.0);
         match analyser_style {
+            _ if !heard => {}
             Some(style) => spectrum::draw(
                 &p,
                 &pts,
@@ -228,7 +247,14 @@ pub fn graph(
     let mut total = vec![s.preamp_db as f64; freqs.len()];
     for (bi, c) in coeffs.iter().enumerate() {
         let b = &s.bands[bi];
-        if !b.enabled || (b.kind.has_gain() && b.gain_db.abs() < 0.05) {
+        let hidden = !shown(bi);
+        if hidden || !b.enabled || (b.kind.has_gain() && b.gain_db.abs() < 0.05) {
+            // A hidden band still counts in the total.
+            if hidden {
+                for (i, &f) in freqs.iter().enumerate() {
+                    total[i] += c.magnitude_db(f, fs);
+                }
+            }
             continue;
         }
         let col = BAND_COLOURS[bi];
@@ -304,7 +330,7 @@ pub fn graph(
             .input(|i| i.pointer.press_origin())
             .or(resp.interact_pointer_pos())
         {
-            if let Some(i) = nearest(&ax, s, *selected, pos) {
+            if let Some(i) = nearest(&ax, s, *selected, pos, &shown) {
                 *selected = i;
                 let grab = ax.node(&s.bands[i]) - pos;
                 ui.data_mut(|d| d.insert_temp(drag_id, (i, grab)));
@@ -319,6 +345,11 @@ pub fn graph(
             let fine = ui.input(|i| i.modifiers.shift);
             let target = pos + grab;
             let b = &mut s.bands[i];
+            let (gmin, gmax) = if tone.is_some() {
+                (-12.0, 12.0)
+            } else {
+                (GAIN_MIN_DB, GAIN_MAX_DB)
+            };
             let (nf, ng) = if fine {
                 let d = resp.drag_delta() * 0.15;
                 (
@@ -328,9 +359,14 @@ pub fn graph(
             } else {
                 (ax.f(target.x), ax.db(target.y))
             };
-            let nf = snap3(nf.clamp(FREQ_MIN, FREQ_MAX));
+            // Simple's tone controls stay where they are and only lift or cut.
+            let nf = if tone.is_some() {
+                b.freq
+            } else {
+                snap3(nf.clamp(FREQ_MIN, FREQ_MAX))
+            };
             let ng = if b.kind.has_gain() {
-                ((ng * 10.0).round() / 10.0).clamp(GAIN_MIN_DB, GAIN_MAX_DB)
+                ((ng * 10.0).round() / 10.0).clamp(gmin, gmax)
             } else {
                 // Moving a cut filter's point up or down changes nothing.
                 b.gain_db
@@ -346,7 +382,7 @@ pub fn graph(
     if resp.drag_stopped() {
         ui.data_mut(|d| d.remove::<(usize, Vec2)>(drag_id));
     }
-    let hovered_node = pointer.and_then(|pos| nearest(&ax, s, *selected, pos));
+    let hovered_node = pointer.and_then(|pos| nearest(&ax, s, *selected, pos, &shown));
     if resp.clicked() {
         if let Some(i) = hovered_node {
             *selected = i;
@@ -358,14 +394,14 @@ pub fn graph(
             result.changed = Some(i);
         }
     }
-    if resp.secondary_clicked() {
+    if resp.secondary_clicked() && tone.is_none() {
         if let Some(i) = hovered_node {
             s.bands[i].enabled = !s.bands[i].enabled;
             *selected = i;
             result.changed = Some(i);
         }
     }
-    if resp.hovered() {
+    if resp.hovered() && tone.is_none() {
         let scroll = wheel(ui);
         if scroll != 0.0 {
             let i = hovered_node.unwrap_or(*selected);
@@ -389,8 +425,23 @@ pub fn graph(
     }
 
     // Points, selected one last so it sits on top.
-    let mut order: Vec<usize> = (0..NUM_BANDS).filter(|&i| i != *selected).collect();
-    order.push(*selected);
+    let mut order: Vec<usize> = (0..NUM_BANDS)
+        .filter(|&i| i != *selected && shown(i))
+        .collect();
+    if shown(*selected) {
+        order.push(*selected);
+    }
+    // Simple names its points: B, LM, M, HM, T.
+    let name = |i: usize| -> String {
+        match tone.and_then(|bands| bands.iter().find(|&&(_, b)| b == i)) {
+            Some((n, _)) => n
+                .split_whitespace()
+                .filter_map(|w| w.chars().next())
+                .collect::<String>()
+                .to_uppercase(),
+            None => (i + 1).to_string(),
+        }
+    };
     for &i in &order {
         let b = &s.bands[i];
         let c = ax.node(b);
@@ -412,7 +463,7 @@ pub fn graph(
                 &p,
                 c,
                 Align2::CENTER_CENTER,
-                &(i + 1).to_string(),
+                &name(i),
                 hifi::bold(11.0),
                 Color32::from_rgb(0x14, 0x10, 0x0e),
                 0.0,
@@ -424,7 +475,7 @@ pub fn graph(
                 &p,
                 c,
                 Align2::CENTER_CENTER,
-                &(i + 1).to_string(),
+                &name(i),
                 hifi::bold(11.0),
                 col,
                 0.0,
@@ -444,15 +495,19 @@ pub fn graph(
         } else {
             String::new()
         };
-        let label = format!(
-            "{} {} · {} Hz{} · Q {:.2}{}",
-            i + 1,
-            kind_name(b.kind),
-            fmt_freq(b.freq).replace('K', "k"),
-            gain,
-            b.q,
-            if b.enabled { "" } else { " · off" }
-        );
+        let hz = fmt_freq(b.freq).replace('K', "k");
+        let label = match tone.and_then(|bands| bands.iter().find(|&&(_, x)| x == i)) {
+            Some((n, _)) => format!("{n} · {hz} Hz{gain}"),
+            None => format!(
+                "{} {} · {} Hz{} · Q {:.2}{}",
+                i + 1,
+                kind_name(b.kind),
+                hz,
+                gain,
+                b.q,
+                if b.enabled { "" } else { " · off" }
+            ),
+        };
         let f = hifi::ui_font(12.5);
         let w = p.layout_no_wrap(label.clone(), f.clone(), t.text).size().x + 18.0;
         let c = ax.node(b);
@@ -507,9 +562,15 @@ pub fn kind_name(k: crate::dsp::FilterKind) -> &'static str {
 
 /// The band point under `pos`; the selected band wins ties so stacked
 /// points stay reachable.
-fn nearest(ax: &Axes, s: &EqSettings, selected: usize, pos: Pos2) -> Option<usize> {
+fn nearest(
+    ax: &Axes,
+    s: &EqSettings,
+    selected: usize,
+    pos: Pos2,
+    shown: &impl Fn(usize) -> bool,
+) -> Option<usize> {
     let mut best: Option<(usize, f32)> = None;
-    for i in 0..NUM_BANDS {
+    for i in (0..NUM_BANDS).filter(|&i| shown(i)) {
         let d = ax.node(&s.bands[i]).distance(pos) - if i == selected { 2.0 } else { 0.0 };
         if d <= NODE_R + 4.0 && best.is_none_or(|(_, bd)| d < bd) {
             best = Some((i, d));

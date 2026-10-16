@@ -314,6 +314,24 @@ pub fn total_response_db(bands: &[BandParams], preamp_db: f32, freq: f64, sample
 /// in dB, between 20 Hz and 20 kHz. Each band's own frequency is checked
 /// too, so a narrow peak is never missed between sample points.
 pub fn peak_response_db(bands: &[BandParams], sample_rate: f64) -> f64 {
+    peak_over_allowance_db(bands, sample_rate, |_| 0.0)
+}
+
+/// How far above 0 dB the response may rise at `freq` before Auto preamp
+/// turns the level down for it, in dB. Music's loud moments carry much less
+/// in the top octaves than in the bass and mids (they fall about 3 dB an
+/// octave, like pink noise), so a treble boost has room that a bass boost
+/// doesn't: none up to 2 kHz, then 3 dB an octave, to 9 dB at 16 kHz.
+pub fn headroom_allowance_db(freq: f64) -> f64 {
+    (3.0 * (freq / 2000.0).log2()).clamp(0.0, 9.0)
+}
+
+/// The highest point of the response less `allowance` at each frequency.
+fn peak_over_allowance_db(
+    bands: &[BandParams],
+    sample_rate: f64,
+    allowance: impl Fn(f64) -> f64,
+) -> f64 {
     const POINTS: usize = 240;
     let coeffs: Vec<Coeffs> = bands
         .iter()
@@ -328,15 +346,23 @@ pub fn peak_response_db(bands: &[BandParams], sample_rate: f64) -> f64 {
         .filter(|f| (lo..=hi).contains(f));
     sweep
         .chain(centres)
-        .map(at)
+        .map(|f| at(f) - allowance(f))
         .fold(f64::NEG_INFINITY, f64::max)
 }
 
-/// The preamp that brings the response's highest point to 0 dB: a cut when
-/// the bands boost, a lift when they only cut. Within the preamp's range,
-/// to 0.1 dB.
+/// The preamp that keeps music out of clipping. When the bands boost, it cuts
+/// just enough to bring the response to 0 dB, less the treble's headroom
+/// ([`headroom_allowance_db`]), so a treble lift costs little or nothing.
+/// When they only cut, it lifts the highest point to exactly 0 dB, as before.
+/// It depends only on the bands, never on the sound, so it moves only when
+/// they do. Within the preamp's range, to 0.1 dB.
 pub fn auto_preamp_db(bands: &[BandParams], sample_rate: f64) -> f32 {
-    let p = -peak_response_db(bands, sample_rate) as f32;
+    let lift = -peak_response_db(bands, sample_rate);
+    let p = if lift >= 0.0 {
+        lift
+    } else {
+        (-peak_over_allowance_db(bands, sample_rate, headroom_allowance_db)).min(0.0)
+    } as f32;
     // (+ 0.0 turns -0.0 into 0.0, so the readout never shows "-0.0".)
     ((p * 10.0).round() / 10.0).clamp(PREAMP_MIN_DB, PREAMP_MAX_DB) + 0.0
 }
@@ -678,6 +704,28 @@ mod tests {
             (auto_preamp_db(&narrow, FS) + 12.0).abs() < 0.11,
             "narrow peak"
         );
+    }
+
+    #[test]
+    fn auto_preamp_leaves_room_for_treble() {
+        let mut b = default_bands();
+        // Band 10: a high shelf at 16 kHz.
+        b[9].gain_db = 6.0;
+        assert_eq!(auto_preamp_db(&b, FS), 0.0, "a treble lift needs no cut");
+        b[9].gain_db = 12.0;
+        let p = auto_preamp_db(&b, FS);
+        assert!((-6.0..-2.0).contains(&p), "a big one needs some: {p}");
+        // Still never above the allowance anywhere.
+        for i in 0..200 {
+            let f = 20.0 * 1000f64.powf(i as f64 / 199.0);
+            assert!(total_response_db(&b, p, f, FS) <= headroom_allowance_db(f) + 0.11);
+        }
+        // Bass and mids get no allowance: the same as before.
+        let mut bass = default_bands();
+        bass[1].gain_db = 6.0;
+        assert!((auto_preamp_db(&bass, FS) + 6.0).abs() < 0.11);
+        assert_eq!(headroom_allowance_db(1000.0), 0.0);
+        assert!((headroom_allowance_db(16_000.0) - 9.0).abs() < 1e-9);
     }
 
     #[test]
