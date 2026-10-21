@@ -3,7 +3,7 @@ members = ["crates/eq-core", "crates/taw-equaliser-apo"]
 
 [workspace.package]
 # The release version for the whole project; bumping it publishes a release.
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 
 [package]

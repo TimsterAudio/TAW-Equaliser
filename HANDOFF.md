@@ -5,6 +5,7 @@ Written 2026-10-14 when the family's work moved from one shared chat to a chat p
 ## Where it stands
 
 - **0.3.0 released on 2026-10-14** (merged to `main`; release.yml publishes `v0.3.0`). It carries both the rename (EQ Box → TAW Equaliser; engine moves to `Timster's Audio Works\Equaliser`, install removes an EQ Box engine first) and the new TAW look (Spool Light Amber default, Porcelain alternative; own window buttons; Simple view with five tone sliders; ten band cards; audio setup in Settings; family switcher; Peak / Low shelf / High shelf offered, HP/LP/notch still load and play).
+- **0.3.2 released on 2026-10-21** (merged to `main`): the clip lights, below.
 - **0.3.1 released on 2026-10-16** (merged to `main`): the fixes from the user's first test of 0.3.0, below. TAW-Panel pinned at its 0.4.0 commit `d030ffd` (the Player's pin).
 - Checked here: all checks, the panel under Xvfb, and the APO harness under Wine (PASS). **Not yet tested on real Windows**, in particular the install script's EQ Box → TAW Equaliser switch. Fixes from the user's Windows test go in a 0.3.x.
 
@@ -22,6 +23,12 @@ Passed: Bypass, settings kept after a restart, the Simple sliders. Feedback, and
 
 Also with the 0.4.0 pin: the shorter nameplate (no EQUALISER), the top band at the Player's height (plate 66, key row 46; the controls row and graph move up 28 and the graph gets the room), Meter colours in Settings (a new `Display` section), and new README screenshots.
 
+## 0.3.2 (2026-10-21): clip lights
+
+The user's 0.3.1 test passed all five fixes. Their idea, built as 0.3.2: a light above each band's gain. HOT from the settings (`hot_bands`: where the response with the preamp exceeds `headroom_allowance_db` by 0.15 dB, the band boosting most there); CLIP from the sound (Out peak > 1.0 while running and not bypassed; `clip_band` picks the band boosting most where the analyser says the music is loudest; held 2 s). The analyser now runs while audio does even with the spectrum hidden, for this. Checked under Xvfb with loud pink noise and a +9 dB bass boost. Unknown: whether Windows' loopback passes levels over full scale, which CLIP needs on the system-wide engine; HOT works there regardless.
+
+Found while testing: presets fill bands in file order, so a preset with fewer than ten filters puts them in bands 1, 2, … whatever their frequencies, and Simple's sliders (bands 2, 4, 6, 8, 10) can end up on odd frequencies (Bass at 8 kHz). Belongs with the ROADMAP item on Simple's own tone frequencies.
+
 ## User feedback still open
 
 - Anodised was dropped (looked fake); Spool replaced it. Check the user is happy with Spool Light Amber as the default.
@@ -35,7 +42,7 @@ Also with the 0.4.0 pin: the shorter nameplate (no EQUALISER), the top band at t
 
 ## Next
 
-1. The user's test of 0.3.1: the gentler Auto preamp, Simple's graph, the spectrum, the corners.
+1. The user's test of 0.3.2's clip lights (passed 0.3.1's fixes on 2026-10-21).
 2. The user's Windows test of the engine (install, the switch from an EQ Box engine, removal), still to come.
 3. Their choice on making the output connection obvious.
 4. Simple's tone controls at 40 Hz, 160 Hz, 625 Hz, 2.5 kHz and 10 kHz (ROADMAP, 0.3.x): settle how Simple's bands relate to Detailed's first.

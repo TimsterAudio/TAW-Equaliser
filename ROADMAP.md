@@ -23,6 +23,7 @@ Carried over from the EQ Box plan on branch `claude/roadmap-pipeline` (2026-10-1
 - [x] From the first test (2026-10-16): the spectrum no longer flickers or vanishes; Auto preamp on by default, always on in Simple, and gentler on treble boosts; Simple's graph shows only its five controls; corner resizing (TAW-Panel 0.3.2); the family's 0.4.0 look and meter colours *(0.3.1)*
 - [ ] Make connecting to the right output obvious (user feedback, 2026-10-16): the first steps of 0.4.0's setup window, or Linux's **Make it my output** from 0.5.0, brought forward if the user chooses
 
+- [x] A clip light on every band: HOT from the settings, CLIP from the sound *(0.3.2, the user's idea)*
 - [ ] **Simple's tone controls at 40 Hz, 160 Hz, 625 Hz, 2.5 kHz and 10 kHz** (user request, 2026-10-16), two octaves apart, instead of bands 2, 4, 6, 8 and 10 at their current frequencies (150 Hz to 12.5 kHz with the preset shown). To settle first: Simple drives five of the same ten bands, so moving them changes what Detailed and a loaded preset have there. Either Simple retunes those bands when it's used (and says so), or it keeps five bands of its own on top of the ten (the engine would need fifteen); Bass and Treble may suit shelves rather than peaks.
 
 *Exit check:* no machine ends up without sound, and Remove restores every device exactly.

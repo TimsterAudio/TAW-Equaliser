@@ -14,7 +14,7 @@ use crate::audio::{self, BackendInfo, DeviceLists, Running, StartRequest};
 use crate::dsp::*;
 use crate::family::{self, App};
 use crate::shared::{analyzer_channel, Shared};
-use egui::{Align2, Id, Key, Pos2, Rect, Stroke, Ui, Vec2, ViewportCommand};
+use egui::{Align2, Color32, Id, Key, Pos2, Rect, Stroke, Ui, Vec2, ViewportCommand};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -205,6 +205,10 @@ pub struct EqApp {
     analyzer: Analyzer,
     /// When the analyser last had samples (see `now`).
     analyser_fed: f64,
+    /// Bands whose boost takes the response past the headroom (HOT).
+    hot: Vec<bool>,
+    /// Until when each band's CLIP light stays lit (see `now`).
+    clip_until: [f64; NUM_BANDS],
     backends: Vec<BackendInfo>,
     devices: DeviceLists,
     device_error: Option<String>,
@@ -255,6 +259,8 @@ impl EqApp {
             running: None,
             analyzer: Analyzer::default(),
             analyser_fed: f64::NEG_INFINITY,
+            hot: vec![false; NUM_BANDS],
+            clip_until: [f64::NEG_INFINITY; NUM_BANDS],
             backends,
             devices: DeviceLists::default(),
             device_error: None,
@@ -489,6 +495,18 @@ impl EqApp {
 
     fn update_meters(&mut self, dt: f32) {
         let peaks = self.shared.take_peaks();
+        // The output went over full scale: light CLIP on the band most
+        // likely to blame, from where the music is loudest right now.
+        if peaks[2].max(peaks[3]) > 1.0 && !self.s.bypass && self.running.is_some() {
+            let rate = self.sample_rate();
+            let an = &self.analyzer;
+            let third = 2f64.powf(1.0 / 6.0);
+            let level =
+                |f: f64| an.level((f / third) as f32, (f * third) as f32, rate as f32) as f64;
+            if let Some(i) = clip_band(&self.s.bands, rate, level) {
+                self.clip_until[i] = now() + 2.0;
+            }
+        }
         for (shown, p) in self.peaks_db.iter_mut().zip(peaks) {
             let db = gain_to_db(p).max(-90.0);
             *shown = if db > *shown {
@@ -497,6 +515,65 @@ impl EqApp {
                 (*shown - 30.0 * dt).max(db).max(-90.0)
             };
         }
+    }
+
+    /// The running stream's sample rate, or 48 kHz.
+    fn sample_rate(&self) -> f64 {
+        match self
+            .shared
+            .sample_rate
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            0 => 48_000.0,
+            r => r as f64,
+        }
+    }
+
+    /// The light above a band's gain: CLIP (red) while the output is
+    /// clipping from it, HOT (amber) while its boost takes the response past
+    /// the headroom, otherwise a faint CLIP.
+    fn clip_light(&self, ui: &Ui, i: usize, centre: Pos2, t: &Tokens) {
+        let clipping = now() < self.clip_until[i];
+        let hot = self.hot[i];
+        let r = Rect::from_center_size(centre, Vec2::new(38.0, 14.0));
+        let p = ui.painter();
+        let (fill, text, word) = if clipping {
+            (Color32::from_rgb(0xff, 0x4a, 0x30), Color32::WHITE, "CLIP")
+        } else if hot {
+            (
+                Color32::from_rgb(0xef, 0xc2, 0x3b),
+                Color32::from_rgb(0x14, 0x10, 0x0e),
+                "HOT",
+            )
+        } else {
+            (Color32::TRANSPARENT, t.dim.gamma_multiply(0.45), "CLIP")
+        };
+        p.rect_filled(r, egui::CornerRadius::same(3), fill);
+        if fill == Color32::TRANSPARENT {
+            p.rect_stroke(
+                r,
+                egui::CornerRadius::same(3),
+                Stroke::new(1.0, t.line),
+                egui::StrokeKind::Inside,
+            );
+        }
+        hifi::label(
+            p,
+            r.center(),
+            Align2::CENTER_CENTER,
+            word,
+            hifi::bold(9.5),
+            text,
+        );
+        let tip = if clipping {
+            "Clipping: the sound went over full scale, most likely from this band's boost. Turn it down, or lower the preamp."
+        } else if hot {
+            "This band's boost takes the sound past the headroom, so loud music can clip. Turn it down, lower the preamp or turn on Auto."
+        } else {
+            "Lights HOT when this band's boost leaves too little headroom, and CLIP when the sound clips because of it."
+        };
+        ui.interact(r, Id::new(("clip", i)), egui::Sense::hover())
+            .on_hover_text(tip);
     }
 
     fn flat(&mut self) {
@@ -923,6 +1000,10 @@ impl EqApp {
             interacted = true;
         }
 
+        if b.kind.has_gain() {
+            self.clip_light(ui, i, Pos2::new(r.center().x, r.top() + 72.0), t);
+        }
+
         // Gain fader, or a note for the types without gain.
         let fr = Rect::from_min_size(
             Pos2::new(r.center().x - 14.0, r.top() + 82.0),
@@ -1027,6 +1108,7 @@ impl EqApp {
                 hifi::bold(15.0),
                 t.text,
             );
+            self.clip_light(ui, *band, Pos2::new(r.right() - 32.0, r.top() + 22.0), t);
             let fr = Rect::from_min_size(
                 Pos2::new(r.center().x - 18.0, r.top() + 48.0),
                 Vec2::new(36.0, r.height() - 120.0),
@@ -1411,7 +1493,9 @@ impl eframe::App for EqApp {
 
         let dt = ui.input(|i| i.stable_dt).min(0.1);
         self.update_meters(dt);
-        if self.s.analyser {
+        // The analyser also tells the CLIP lights where the music is loud,
+        // so it runs while audio does, shown or not.
+        if self.s.analyser || self.running.is_some() {
             // Simple's spectrum moves more calmly.
             self.analyzer.ballistics.rise_ms = if self.s.simple { 120.0 } else { 0.0 };
             self.analyzer.ballistics.fall_ms = if self.s.simple { 700.0 } else { 215.0 };
@@ -1458,6 +1542,12 @@ impl eframe::App for EqApp {
         if ctrl_s {
             self.save_preset();
         }
+
+        self.hot = if self.s.bypass {
+            vec![false; NUM_BANDS]
+        } else {
+            hot_bands(&self.s.bands, self.s.preamp_db, self.sample_rate())
+        };
 
         let screen = ui.max_rect();
         hifi::faceplate(ui.painter(), screen, &t);

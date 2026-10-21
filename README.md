@@ -1,6 +1,6 @@
 # TAW Equaliser
 
-**Timster's Audio Works – Equaliser (EQ-001) v0.3.1**: a native ten-band parametric equaliser for Windows and Linux. One of the family's hi-fi separates, with the Library, Player and Analyser, in their shared TAW look (Spool or Porcelain, light or dark). It was called EQ Box until 0.3.0.
+**Timster's Audio Works – Equaliser (EQ-001) v0.3.2**: a native ten-band parametric equaliser for Windows and Linux. One of the family's hi-fi separates, with the Library, Player and Analyser, in their shared TAW look (Spool or Porcelain, light or dark). It was called EQ Box until 0.3.0.
 
 ![The Equaliser in its Detailed view (Spool, Light, Amber) with a headphone preset loaded and pink noise playing](docs/screenshot.png)
 
@@ -20,6 +20,7 @@ Get the latest version from the [Releases page](https://github.com/TimsterAudio/
 ## What it does
 
 - **10 bands.** Each band is a **peak** (bell), **low shelf** or **high shelf**, with its own on switch. Presets with **high-pass**, **low-pass** or **notch** filters still load and play, and those bands show their type.
+- **A clip light on every band:** **HOT** (yellow) when the band's boost leaves too little headroom for loud music, and **CLIP** (red) when the sound really clips and that band is the likely cause.
 - **Simple or Detailed.** Simple has five tone sliders (Bass, Low mid, Mid, High mid, Treble) and the preset. Detailed has all ten band cards, the preamp and the meters.
 - **Gain from +12 dB to −24 dB**, frequency from 20 Hz to 20 kHz, and **Q from 0.1 to 20**, plus a **preamp** (+12 / −24 dB) with **Auto** (on by default, and always on in Simple: it turns the preamp down just enough for your boosts to stay out of clipping, allowing for the treble's extra headroom) and **Bypass** for A/B checks.
 - **Loads APO-format EQ presets**, such as AutoEQ's `ParametricEQ.txt` files. It reads `Preamp:` and `Filter:` lines with the `PK`, `LS`/`LSC`, `HS`/`HSC`, `HP`/`HPQ`, `LP`/`LPQ` and `NO` types, `Fc`, `Gain`, `Q` or `BW Oct`, and `ON`/`OFF`. It **saves** presets in the same format.
@@ -79,6 +80,7 @@ In an ASIO build, choose **ASIO** under **System** in Settings, then pick your i
 | Preamp | **Auto** (on by default) turns the preamp down for your boosts, so music stays out of clipping. A boost in the bass or mids is cut in full; the treble has more headroom, because music carries far less up there, so a treble lift costs little or nothing (none up to 2 kHz, rising 3 dB an octave to 9 dB at 16 kHz). It follows the bands, never the music, and settles when you let go of the mouse. When the bands only cut, it lifts the highest point to 0 dB. Moving the preamp slider takes over from it. Simple always uses Auto; turn it off in Detailed. |
 | Keys | **Space**: bypass · **Ctrl+O**: load preset · **Ctrl+S**: save preset |
 | Presets | **Load…** / **Save…** buttons, drop a preset file on the window, or pass one on the command line: `taw-equaliser "HD 600 ParametricEQ.txt"`. |
+| Clip lights | Above each band's gain (beside each tone slider in Simple). **HOT** (yellow): the band's frequency, gain and Q, with the preamp, take the sound past the headroom (the same allowance Auto uses), so loud music can clip. **CLIP** (red, held 2 s): the output went over full scale and this band, boosting most where the music was loudest, is the likely cause. Hover for what to do. |
 | Flat / Reset | **Flat** sets every gain and the preamp to 0 dB. **Reset** also restores the default band layout. |
 
 When a preset has more than ten filters, the Equaliser loads the first ten. It skips filter types it doesn't have (such as band-pass or all-pass), and limits values that are outside the panel's ranges. The footer lists anything it changed.
