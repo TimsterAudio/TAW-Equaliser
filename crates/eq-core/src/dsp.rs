@@ -332,20 +332,13 @@ fn peak_over_allowance_db(
     sample_rate: f64,
     allowance: impl Fn(f64) -> f64,
 ) -> f64 {
-    const POINTS: usize = 240;
     let coeffs: Vec<Coeffs> = bands
         .iter()
         .map(|b| Coeffs::for_band(&b.clamped(), sample_rate))
         .collect();
     let at = |f: f64| -> f64 { coeffs.iter().map(|c| c.magnitude_db(f, sample_rate)).sum() };
-    let (lo, hi) = (FREQ_MIN as f64, (FREQ_MAX as f64).min(sample_rate * 0.49));
-    let sweep = (0..POINTS).map(|i| lo * (hi / lo).powf(i as f64 / (POINTS - 1) as f64));
-    let centres = bands
-        .iter()
-        .map(|b| b.freq as f64)
-        .filter(|f| (lo..=hi).contains(f));
-    sweep
-        .chain(centres)
+    check_points(bands, sample_rate)
+        .into_iter()
         .map(|f| at(f) - allowance(f))
         .fold(f64::NEG_INFINITY, f64::max)
 }
@@ -365,6 +358,89 @@ pub fn auto_preamp_db(bands: &[BandParams], sample_rate: f64) -> f32 {
     } as f32;
     // (+ 0.0 turns -0.0 into 0.0, so the readout never shows "-0.0".)
     ((p * 10.0).round() / 10.0).clamp(PREAMP_MIN_DB, PREAMP_MAX_DB) + 0.0
+}
+
+/// Frequencies to check a response at: a log sweep from 20 Hz to 20 kHz
+/// (or just under Nyquist), plus each band's own frequency so a narrow peak
+/// is never missed.
+fn check_points(bands: &[BandParams], sample_rate: f64) -> Vec<f64> {
+    const POINTS: usize = 240;
+    let (lo, hi) = (FREQ_MIN as f64, (FREQ_MAX as f64).min(sample_rate * 0.49));
+    (0..POINTS)
+        .map(|i| lo * (hi / lo).powf(i as f64 / (POINTS - 1) as f64))
+        .chain(
+            bands
+                .iter()
+                .map(|b| b.freq as f64)
+                .filter(|f| (lo..=hi).contains(f)),
+        )
+        .collect()
+}
+
+/// The bands that take the response, with the preamp, past the headroom at
+/// some frequency ([`headroom_allowance_db`] above 0 dB): where a loud
+/// passage would clip first. Where the response is too high, the band
+/// boosting most there is the one marked.
+pub fn hot_bands(bands: &[BandParams], preamp_db: f32, sample_rate: f64) -> Vec<bool> {
+    let coeffs: Vec<Coeffs> = bands
+        .iter()
+        .map(|b| Coeffs::for_band(&b.clamped(), sample_rate))
+        .collect();
+    let mut hot = vec![false; bands.len()];
+    for f in check_points(bands, sample_rate) {
+        let m: Vec<f64> = coeffs
+            .iter()
+            .map(|c| c.magnitude_db(f, sample_rate))
+            .collect();
+        let total = m.iter().sum::<f64>() + preamp_db as f64;
+        // Above Auto's own 0.1 dB rounding.
+        if total - headroom_allowance_db(f) > 0.15 {
+            if let Some((i, _)) = m
+                .iter()
+                .enumerate()
+                .filter(|&(_, &g)| g > 0.05)
+                .max_by(|a, b| a.1.total_cmp(b.1))
+            {
+                hot[i] = true;
+            }
+        }
+    }
+    hot
+}
+
+/// When the output clips, the band most likely to be the cause: the one
+/// boosting most where the music is loudest. `level` is the music's level
+/// at a frequency in dB after the EQ (the analyser's). None when no band
+/// boosts anywhere.
+pub fn clip_band(
+    bands: &[BandParams],
+    sample_rate: f64,
+    level: impl Fn(f64) -> f64,
+) -> Option<usize> {
+    let coeffs: Vec<Coeffs> = bands
+        .iter()
+        .map(|b| Coeffs::for_band(&b.clamped(), sample_rate))
+        .collect();
+    let mut best: Option<(usize, f64)> = None;
+    for f in check_points(bands, sample_rate) {
+        let m: Vec<f64> = coeffs
+            .iter()
+            .map(|c| c.magnitude_db(f, sample_rate))
+            .collect();
+        let Some((i, _)) = m
+            .iter()
+            .enumerate()
+            .filter(|&(_, &g)| g > 0.5)
+            .max_by(|a, b| a.1.total_cmp(b.1))
+        else {
+            continue;
+        };
+        let loud = level(f);
+        if best.is_none_or(|(_, l)| loud > l) {
+            best = Some((i, loud));
+        }
+    }
+    best.map(|(i, _)| i)
 }
 
 /// Transposed direct form II, one channel.
@@ -726,6 +802,44 @@ mod tests {
         assert!((auto_preamp_db(&bass, FS) + 6.0).abs() < 0.11);
         assert_eq!(headroom_allowance_db(1000.0), 0.0);
         assert!((headroom_allowance_db(16_000.0) - 9.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn hot_bands_mark_the_boost_past_the_headroom() {
+        let mut b = default_bands();
+        assert!(hot_bands(&b, 0.0, FS).iter().all(|h| !h), "flat");
+        b[2].gain_db = 6.0; // 125 Hz: no headroom there
+        let hot = hot_bands(&b, 0.0, FS);
+        assert!(hot[2] && hot.iter().filter(|h| **h).count() == 1);
+        assert!(
+            hot_bands(&b, -6.0, FS).iter().all(|h| !h),
+            "preamp covers it"
+        );
+        let p = auto_preamp_db(&b, FS);
+        assert!(hot_bands(&b, p, FS).iter().all(|h| !h), "Auto covers it");
+        let mut treble = default_bands();
+        treble[9].gain_db = 6.0; // within the treble's headroom
+        assert!(hot_bands(&treble, 0.0, FS).iter().all(|h| !h));
+        treble[9].gain_db = 12.0;
+        assert!(hot_bands(&treble, 0.0, FS)[9]);
+        // A cut is never hot, even with the preamp up.
+        let mut cut = default_bands();
+        cut[5].gain_db = -6.0;
+        assert!(!hot_bands(&cut, 3.0, FS)[5]);
+    }
+
+    #[test]
+    fn clip_band_blames_the_boost_where_the_music_is() {
+        let mut b = default_bands();
+        assert_eq!(clip_band(&b, FS, |_| 0.0), None, "nothing boosts");
+        b[1].gain_db = 4.0; // 63 Hz
+        b[8].gain_db = 6.0; // 8 kHz
+                            // Bass-heavy music: the bass boost is to blame, though it's smaller.
+        let bassy = |f: f64| if f < 200.0 { -3.0 } else { -30.0 };
+        assert_eq!(clip_band(&b, FS, bassy), Some(1));
+        // Bright music: the treble boost.
+        let bright = |f: f64| if f > 4000.0 { -3.0 } else { -30.0 };
+        assert_eq!(clip_band(&b, FS, bright), Some(8));
     }
 
     #[test]

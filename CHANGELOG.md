@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.3.2 – 2026-10-21
+
+- **A clip light on every band**, above its gain fader (and beside each tone slider in Simple):
+  - **HOT** (yellow): this band's boost takes the sound past the headroom, so loud music can clip. Worked out from the band's frequency, gain and Q with the preamp, allowing for the treble's headroom as Auto does; with Auto on it only lights while you're dragging.
+  - **CLIP** (red): the sound really did go over full scale, and this band is the likely cause: the one boosting most where the music is loudest at that moment. It stays lit for 2 seconds.
+  - Hover over the light for what to do. Bands without gain (high-pass, low-pass and notch, from presets) have no light.
+
 ## 0.3.1 – 2026-10-16
 
 From the first test of 0.3.0, and the family's tighter look.
