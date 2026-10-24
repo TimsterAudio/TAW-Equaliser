@@ -26,6 +26,8 @@ Carried over from the EQ Box plan on branch `claude/roadmap-pipeline` (2026-10-1
 - [x] A clip light on every band: HOT from the settings, CLIP from the sound *(0.3.2, the user's idea)*
 - [ ] **Simple's tone controls at 40 Hz, 160 Hz, 625 Hz, 2.5 kHz and 10 kHz** (user request, 2026-10-16), two octaves apart, instead of bands 2, 4, 6, 8 and 10 at their current frequencies (150 Hz to 12.5 kHz with the preset shown). To settle first: Simple drives five of the same ten bands, so moving them changes what Detailed and a loaded preset have there. Either Simple retunes those bands when it's used (and says so), or it keeps five bands of its own on top of the ten (the engine would need fifteen); Bass and Treble may suit shelves rather than peaks.
 
+- [ ] **A wider analyser range, as an option** (user request, 2026-10-24): the spectrum behind the curve from 10 Hz to 50 kHz, chosen in Settings › Display (20 Hz – 20 kHz stays the default). Only the display widens: the bands keep their 20 Hz – 20 kHz range (CLAUDE.md). Above 20 kHz needs a high sample rate (50 kHz needs 100 kHz or more; at 48 kHz the spectrum stops at 24 kHz, at 96 kHz at 48 kHz), so the graph should show where the sound actually ends. Below 20 Hz, the 8192-point FFT gives about 6 Hz per bin at 48 kHz, coarse but readable. Worth offering the same option in the TAW Analyser, through TAW-Panel.
+
 *Exit check:* no machine ends up without sound, and Remove restores every device exactly.
 
 ### 0.4.0: easy enough for anyone, part 1
