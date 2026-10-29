@@ -2667,6 +2667,7 @@ dependencies = [
  "serde",
  "serde_json",
  "taw-panel",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

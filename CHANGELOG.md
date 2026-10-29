@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **One Equaliser at a time.** Clicking the Equaliser in another app's family switcher (or opening the Equaliser again) brings the open one to the front, restored if it was minimised, instead of starting a second Equaliser.
+
 ## 0.3.2 – 2026-10-21
 
 - **A clip light on every band**, above its gain fader (and beside each tone slider in Simple):

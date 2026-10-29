@@ -7,6 +7,7 @@
 pub mod audio;
 pub mod family;
 pub mod icon;
+pub mod instance;
 pub mod ui;
 
 pub use eq_core::{dsp, preset, shared};

@@ -1,9 +1,14 @@
 // Hide the console window on Windows release builds.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
-use taw_equaliser::{icon, ui};
+use taw_equaliser::{icon, instance, ui};
 
 fn main() -> eframe::Result {
+    // One Equaliser at a time: if one is open, bring it forward instead.
+    let dir = instance::data_dir();
+    if dir.as_deref().is_some_and(instance::hand_over) {
+        return Ok(());
+    }
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("TAW Equaliser")
@@ -19,6 +24,11 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "TAW Equaliser",
         options,
-        Box::new(|cc| Ok(Box::new(ui::app::EqApp::new(cc)))),
+        Box::new(move |cc| {
+            if let Some(dir) = dir {
+                instance::watch(dir, cc.egui_ctx.clone());
+            }
+            Ok(Box::new(ui::app::EqApp::new(cc)))
+        }),
     )
 }
