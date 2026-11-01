@@ -3,7 +3,7 @@ members = ["crates/eq-core", "crates/taw-equaliser-apo"]
 
 [workspace.package]
 # The release version for the whole project; bumping it publishes a release.
-version = "0.3.4"
+version = "0.3.5"
 edition = "2021"
 
 [package]
@@ -35,7 +35,8 @@ serde_json = "1"
 
 [target.'cfg(windows)'.dependencies]
 # AllowSetForegroundWindow: a second launch lets the open Equaliser come to the front
-windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging"] }
+# Registry: which outputs the system-wide engine is on
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "Win32_System_Registry", "Win32_Foundation"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pipewire = { version = "0.10", features = ["v0_3_53"] }

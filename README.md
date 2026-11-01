@@ -1,6 +1,6 @@
 # TAW Equaliser
 
-**Timster's Audio Works – Equaliser (EQ-001) v0.3.4**: a native ten-band parametric equaliser for Windows and Linux. One of the family's hi-fi separates, with the Library, Player and Analyser, in their shared TAW look (Linen or Porcelain, light or dark). It was called EQ Box until 0.3.0.
+**Timster's Audio Works – Equaliser (EQ-001) v0.3.5**: a native ten-band parametric equaliser for Windows and Linux. One of the family's hi-fi separates, with the Library, Player and Analyser, in their shared TAW look (Linen or Porcelain, light or dark). It was called EQ Box until 0.3.0.
 
 ![The Equaliser in its Detailed view (Spool, Light, Amber) with a headphone preset loaded and pink noise playing](docs/screenshot.png)
 
@@ -51,6 +51,8 @@ The Equaliser's engine can run inside Windows' own audio engine, so every app on
 1. In the Equaliser's Settings (the gear), set **System** to **Windows (system-wide)** and press **Install engine** (or double-click `Install system-wide engine.cmd`). Allow Windows' permission prompt, then pick your output.
 2. Turn on the **On** switch. Your settings go straight to the engine and stay set after the Equaliser closes.
 3. **Remove** (or `Remove system-wide engine.cmd`) puts every device back exactly as it was.
+
+If the EQ stops having any effect, look at the line under the On switch. **"Engine isn't on any output"** means Windows took it off (a Windows update, a new driver, or a device plugged into another port can): press **Add to an output** again. **"Audio enhancements are off"** means Windows is skipping it: in Windows Settings › System › Sound, click the output and set Audio enhancements to Device Default Effects.
 
 If the output already has its own effect from its driver, the Equaliser keeps it and runs it after the EQ.
 

@@ -624,6 +624,8 @@ impl EqApp {
             (Some(_), _) if self.is_win_engine() => match self.engine {
                 EngineState::NotInstalled => ("Engine not installed (see Settings)".into(), true),
                 EngineState::Idle => ("Whole computer · engine idle".into(), false),
+                EngineState::NoOutput => ("Engine isn't on any output".into(), true),
+                EngineState::EnhancementsOff => ("Audio enhancements are off".into(), true),
                 EngineState::Active => ("Whole computer · all apps".into(), false),
                 EngineState::Outdated => ("Engine needs updating (see Settings)".into(), true),
             },
@@ -1438,6 +1440,10 @@ impl EqApp {
             (e.clone(), true)
         } else if is_win_engine && self.engine == EngineState::NotInstalled {
             ("The Equaliser's engine isn't installed yet. Press Install engine, allow Windows' permission prompt, and pick your output in the window that opens. Every app on that output then goes through the Equaliser, with no virtual cable.".to_string(), false)
+        } else if is_win_engine && self.engine == EngineState::NoOutput {
+            ("The engine is installed but isn't on any connected output, so nothing goes through it. Windows updates, new drivers, or plugging a device into another port can take it off. Press Add to an output, allow Windows' permission prompt, and pick the output you listen on.".to_string(), true)
+        } else if is_win_engine && self.engine == EngineState::EnhancementsOff {
+            ("The engine is on your output, but Windows has Audio enhancements turned off for it, which skips the engine. In Windows Settings › System › Sound, click the output and set Audio enhancements to Device Default Effects.".to_string(), true)
         } else if is_win_engine && self.engine == EngineState::Outdated {
             ("The engine installed in Windows is older than this Equaliser, so some settings (such as the high-pass, low-pass and notch filters) have no effect. Press Update engine, allow Windows' permission prompt, and pick the same output to install the new engine.".to_string(), true)
         } else if is_win_engine {
