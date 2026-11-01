@@ -1,6 +1,6 @@
 # TAW Equaliser
 
-**Timster's Audio Works – Equaliser (EQ-001) v0.3.3**: a native ten-band parametric equaliser for Windows and Linux. One of the family's hi-fi separates, with the Library, Player and Analyser, in their shared TAW look (Spool or Porcelain, light or dark). It was called EQ Box until 0.3.0.
+**Timster's Audio Works – Equaliser (EQ-001) v0.3.4**: a native ten-band parametric equaliser for Windows and Linux. One of the family's hi-fi separates, with the Library, Player and Analyser, in their shared TAW look (Linen or Porcelain, light or dark). It was called EQ Box until 0.3.0.
 
 ![The Equaliser in its Detailed view (Spool, Light, Amber) with a headphone preset loaded and pink noise playing](docs/screenshot.png)
 
