@@ -3,7 +3,7 @@ members = ["crates/eq-core", "crates/taw-equaliser-apo"]
 
 [workspace.package]
 # The release version for the whole project; bumping it publishes a release.
-version = "0.3.2"
+version = "0.3.4"
 edition = "2021"
 
 [package]
@@ -26,12 +26,16 @@ egui = "0.36"
 cpal = "0.18"
 rfd = "0.17"
 # Unreleased (0.3.0 to be): the hifi look, with the spectrum drawing and the analyser
-taw-panel = { git = "https://github.com/TimsterAudio/TAW-Panel", rev = "d030ffdbc51c48e784cd74b20c5547a766461e5a", features = ["analyser"] }
+taw-panel = { git = "https://github.com/TimsterAudio/TAW-Panel", rev = "41b1742396d58f261228f124b38290e3e168e1d9", features = ["analyser"] } # 0.5.0
 serde = { version = "1", features = ["derive"] }
 rtrb = "0.4"
 
 [dev-dependencies]
 serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+# AllowSetForegroundWindow: a second launch lets the open Equaliser come to the front
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pipewire = { version = "0.10", features = ["v0_3_53"] }
