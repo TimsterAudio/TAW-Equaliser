@@ -209,6 +209,13 @@ pub struct EqApp {
     hot: Vec<bool>,
     /// Until when each band's CLIP light stays lit (see `now`).
     clip_until: [f64; NUM_BANDS],
+    /// When the meters last heard anything (see `now`): the panel only
+    /// animates while there's sound, or for a moment after.
+    last_heard: f64,
+    /// What `hot` and Auto's preamp were last worked out for, so they're
+    /// only worked out again when the bands, preamp or rate change.
+    hot_for: Option<([BandParams; NUM_BANDS], f32, f64, bool)>,
+    auto_for: Option<[BandParams; NUM_BANDS]>,
     backends: Vec<BackendInfo>,
     devices: DeviceLists,
     device_error: Option<String>,
@@ -261,6 +268,9 @@ impl EqApp {
             analyser_fed: f64::NEG_INFINITY,
             hot: vec![false; NUM_BANDS],
             clip_until: [f64::NEG_INFINITY; NUM_BANDS],
+            last_heard: f64::NEG_INFINITY,
+            hot_for: None,
+            auto_for: None,
             backends,
             devices: DeviceLists::default(),
             device_error: None,
@@ -495,6 +505,10 @@ impl EqApp {
 
     fn update_meters(&mut self, dt: f32) {
         let peaks = self.shared.take_peaks();
+        // Anything above −80 dB on the way in or out counts as sound.
+        if peaks.iter().any(|&p| p > 1e-4) {
+            self.last_heard = now();
+        }
         // The output went over full scale: light CLIP on the band most
         // likely to blame, from where the music is loudest right now.
         if peaks[2].max(peaks[3]) > 1.0 && !self.s.bypass && self.running.is_some() {
@@ -1514,8 +1528,18 @@ impl eframe::App for EqApp {
                 }
             }
         }
+        // While there's sound (and for 3 s after, while the meters, the
+        // spectrum and any CLIP light settle), about 33 frames a second, as
+        // the Player does. Otherwise only twice a second, to notice sound
+        // starting; any mouse or key wakes the panel at once. Drawing 60
+        // frames a second all the time cost a lot of CPU in silence.
         if self.running.is_some() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(16));
+            let lively = now() - self.last_heard < 3.0;
+            ctx.request_repaint_after(std::time::Duration::from_millis(if lively {
+                30
+            } else {
+                500
+            }));
         }
         self.watch_engine(&ctx);
 
@@ -1543,11 +1567,20 @@ impl eframe::App for EqApp {
             self.save_preset();
         }
 
-        self.hot = if self.s.bypass {
-            vec![false; NUM_BANDS]
-        } else {
-            hot_bands(&self.s.bands, self.s.preamp_db, self.sample_rate())
-        };
+        let hot_for = (
+            self.s.bands,
+            self.s.preamp_db,
+            self.sample_rate(),
+            self.s.bypass,
+        );
+        if self.hot_for != Some(hot_for) {
+            self.hot_for = Some(hot_for);
+            self.hot = if self.s.bypass {
+                vec![false; NUM_BANDS]
+            } else {
+                hot_bands(&self.s.bands, self.s.preamp_db, self.sample_rate())
+            };
+        }
 
         let screen = ui.max_rect();
         hifi::faceplate(ui.painter(), screen, &t);
@@ -1593,7 +1626,15 @@ impl eframe::App for EqApp {
         if self.s.simple {
             self.s.auto_preamp = true;
         }
-        if self.s.auto_preamp && !ui.input(|i| i.pointer.any_down()) {
+        if !self.s.auto_preamp {
+            // Coming back on (Simple, or the switch) works it out afresh.
+            self.auto_for = None;
+        }
+        if self.s.auto_preamp
+            && !ui.input(|i| i.pointer.any_down())
+            && self.auto_for != Some(self.s.bands)
+        {
+            self.auto_for = Some(self.s.bands);
             self.s.preamp_db = auto_preamp_db(&self.s.bands, 48_000.0);
         }
         self.shared.store(&self.settings());

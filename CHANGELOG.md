@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Much less CPU when nothing's playing.** With the Equaliser on, the panel redrew itself 60 times a second all the time, even in silence (8–10% of a desktop CPU on Windows). It now draws about 33 frames a second while there's sound (as the Player does), settles for 3 seconds after it stops, then redraws only twice a second until sound starts again; touching anything still wakes it at once. HOT and Auto preamp are only worked out again when the bands change.
+
 ## 0.3.4 – 2026-11-01
 
 - **The warm finish is called Linen** (it was Spool) in Settings. It looks the same, and a saved "Spool" choice opens as Linen. From TAW-Panel 0.5.0.

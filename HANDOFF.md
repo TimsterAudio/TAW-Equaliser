@@ -29,6 +29,11 @@ The user's 0.3.1 test passed all five fixes. Their idea, built as 0.3.2: a light
 
 Found while testing: presets fill bands in file order, so a preset with fewer than ten filters puts them in bands 1, 2, … whatever their frequencies, and Simple's sliders (bands 2, 4, 6, 8, 10) can end up on odd frequencies (Bass at 8 kHz). Belongs with the ROADMAP item on Simple's own tone frequencies.
 
+## 2026-11-01: Windows engine and CPU
+
+- The user's engine stopped working after 14 October: the diagnostic showed it registered on no device (a Windows feature update to 25H2, build 26200, or the DX3 Pro re-enumerating, dropped it). Removing and installing the latest release fixed it. The app's status said "engine idle", which sounds like waiting for music; worth making it say when the engine is on no output (offered to the user, not built).
+- CPU: 8–10% of an i7-9700 with nothing playing. The panel requested a repaint every 16 ms whenever audio was on. Now 30 ms while the meters hear anything above −80 dB (and 3 s after), 500 ms otherwise; HOT and Auto are cached on the bands. Under Xvfb (software GL) silent use fell from about 230% of a core to 7%; `perf` while playing showed 88% in Mesa's software rasteriser and about 1.6% in the app's own code.
+
 ## User feedback still open
 
 - Anodised was dropped (looked fake); Spool replaced it. Check the user is happy with Spool Light Amber as the default.
