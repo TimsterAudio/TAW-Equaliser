@@ -5,6 +5,7 @@ Written 2026-10-14 when the family's work moved from one shared chat to a chat p
 ## Where it stands
 
 - **0.3.0 released on 2026-10-14** (merged to `main`; release.yml publishes `v0.3.0`). It carries both the rename (EQ Box → TAW Equaliser; engine moves to `Timster's Audio Works\Equaliser`, install removes an EQ Box engine first) and the new TAW look (Spool Light Amber default, Porcelain alternative; own window buttons; Simple view with five tone sliders; ten band cards; audio setup in Settings; family switcher; Peak / Low shelf / High shelf offered, HP/LP/notch still load and play).
+- **0.3.5 released on 2026-11-01**: much less CPU in silence, and the engine's status says when it's on no output or enhancements are off.
 - **0.3.2 released on 2026-10-21** (merged to `main`): the clip lights, below.
 - **0.3.1 released on 2026-10-16** (merged to `main`): the fixes from the user's first test of 0.3.0, below. TAW-Panel pinned at its 0.4.0 commit `d030ffd` (the Player's pin).
 - Checked here: all checks, the panel under Xvfb, and the APO harness under Wine (PASS). **Not yet tested on real Windows**, in particular the install script's EQ Box → TAW Equaliser switch. Fixes from the user's Windows test go in a 0.3.x.
@@ -28,6 +29,11 @@ Also with the 0.4.0 pin: the shorter nameplate (no EQUALISER), the top band at t
 The user's 0.3.1 test passed all five fixes. Their idea, built as 0.3.2: a light above each band's gain. HOT from the settings (`hot_bands`: where the response with the preamp exceeds `headroom_allowance_db` by 0.15 dB, the band boosting most there); CLIP from the sound (Out peak > 1.0 while running and not bypassed; `clip_band` picks the band boosting most where the analyser says the music is loudest; held 2 s). The analyser now runs while audio does even with the spectrum hidden, for this. Checked under Xvfb with loud pink noise and a +9 dB bass boost. Unknown: whether Windows' loopback passes levels over full scale, which CLIP needs on the system-wide engine; HOT works there regardless.
 
 Found while testing: presets fill bands in file order, so a preset with fewer than ten filters puts them in bands 1, 2, … whatever their frequencies, and Simple's sliders (bands 2, 4, 6, 8, 10) can end up on odd frequencies (Bass at 8 kHz). Belongs with the ROADMAP item on Simple's own tone frequencies.
+
+## 2026-11-01: Windows engine and CPU
+
+- The user's engine stopped working after 14 October: the diagnostic showed it registered on no device (a Windows feature update to 25H2, build 26200, or the DX3 Pro re-enumerating, dropped it). Removing and installing the latest release fixed it. The app's status said "engine idle", which sounds like waiting for music. 0.3.5 reads the registry as `engine-common.ps1` does (`engine_setup::engine_outputs`: Render devices whose FxProperties endpoint effect is the engine's CLSID, their DeviceState and Audio-enhancements-off flag) and says "Engine isn't on any output" or "Audio enhancements are off" instead; checked under Wine with fake devices.
+- CPU: 8–10% of an i7-9700 with nothing playing. The panel requested a repaint every 16 ms whenever audio was on. Now 30 ms while the meters hear anything above −80 dB (and 3 s after), 500 ms otherwise; HOT and Auto are cached on the bands. Under Xvfb (software GL) silent use fell from about 230% of a core to 7%; `perf` while playing showed 88% in Mesa's software rasteriser and about 1.6% in the app's own code.
 
 ## User feedback still open
 
