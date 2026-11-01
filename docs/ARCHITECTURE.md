@@ -42,6 +42,7 @@ The code is a Cargo workspace:
 | `audio/pipewire_sink.rs` | Two PipeWire streams in one link group: an `Audio/Sink` node called "TAW Equaliser", and a playback stream to the chosen output. They're joined by a ring buffer, the same shape as `pw-loopback`. |
 | `audio/windows_engine.rs` | "Windows (system-wide)": writes the panel to the engine's settings file when it changes, and drives the meters and analyser from WASAPI loopback. It never touches the audio path. |
 | `audio/cpal_backend.rs` | Any cpal host. An input stream and an output stream are joined by a ring buffer with a set latency and drift correction. On WASAPI, `loopback:` inputs capture an output device. |
+| `instance.rs` | One Equaliser at a time: a later launch asks the open one to come forward and exits (the family's way, in TAW-Panel's FAMILY.md). |
 | `taw-panel` (shared crate) | The spectrum drawing (`spectrum`) and the analyser's FFT and ballistics (`analyzer`), and the look (`hifi`: finishes, fonts, the nameplate, window buttons and controls). It's TimsterAudio/TAW-Panel, pinned by commit in Cargo.toml; `ui::theme`, `ui::widgets` and `ui::spectrum` re-export its older modules. |
 
 ## Real-time processing
@@ -55,6 +56,7 @@ The code is a Cargo workspace:
 ## Threads
 
 - **PipeWire:** one thread runs the PipeWire main loop. The stream `process` callbacks run on PipeWire's real-time data thread (`RT_PROCESS`). Stopping sends a message over a `pipewire::channel` that quits the loop.
+- **One at a time:** a small thread checks in to the data folder's `running` file every second and watches its `inbox`, bringing the window forward when another launch asks (`instance.rs`). It runs on its own so it works while the window is minimised and not redrawing.
 - **cpal:** a dedicated thread owns the streams, because some hosts' streams can't move between threads. Dropping `Running` stops that thread.
 
 ## Tests

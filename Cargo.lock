@@ -786,7 +786,7 @@ checksum = "773fa9c96dd0dbef887e39d0ed6177f141cce4d68e6041df77570aa3702dfa13"
 
 [[package]]
 name = "eq-core"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "rtrb",
  "serde",
@@ -2655,7 +2655,7 @@ checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
 
 [[package]]
 name = "taw-equaliser"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "cpal",
  "eframe",
@@ -2667,11 +2667,12 @@ dependencies = [
  "serde",
  "serde_json",
  "taw-panel",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
 name = "taw-equaliser-apo"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "eq-core",
  "windows",
