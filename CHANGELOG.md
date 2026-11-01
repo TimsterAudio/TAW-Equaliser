@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **The warm finish is called Linen** (it was Spool) in Settings. It looks the same, and a saved "Spool" choice opens as Linen. From TAW-Panel 0.5.0.
+
 ## 0.3.3 – 2026-11-01
 
 - **One Equaliser at a time.** Clicking the Equaliser in another app's family switcher (or opening the Equaliser again) brings the open one to the front, restored if it was minimised, instead of starting a second Equaliser.
